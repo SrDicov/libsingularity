@@ -45,6 +45,12 @@ namespace Singularity.Collab {
             queue(op(key, e));
         }
 
+        public void adopt(string key, string? value) {
+            var cur = entries[key];
+            if (cur == null) return;
+            cur.value = value;
+        }
+
         public void remove(string key) {
             set(key, null);
         }

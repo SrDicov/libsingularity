@@ -142,6 +142,33 @@ void test_text_binding_roundtrip() {
     assert(doc_b == doc_a);
 }
 
+
+void test_units_binding_reencoding() {
+    var model_a = new Gee.HashMap<string, string>();
+    model_a["t1"] = "{\"done\":false,\"title\":\"Milk\"}";
+    var a = new Document();
+    a.load_values(model_a);
+    var b = new Document();
+    b.load(a.snapshot());
+    var model_b = new Gee.HashMap<string, bool>();
+    model_b["t1"] = false;
+    var bind_b = new UnitsBinding(b, () => {
+        var m = new Gee.HashMap<string, string>();
+        foreach (var e in model_b.entries) m[e.key] = "{ \"title\": \"Milk\", \"done\": %s }".printf(e.value.to_string());
+        return m;
+    }, (changed, who) => {
+        foreach (var e in changed.entries) model_b[e.key] = e.value != null && e.value.contains("true");
+    });
+    bind_b.adopt_local();
+    bind_b.local_changed();
+    assert(b.take_outgoing() == null);
+    a.set("t1", "{\"done\":true,\"title\":\"Milk\"}");
+    b.merge("a", a.take_outgoing());
+    assert(model_b["t1"] == true);
+    bind_b.local_changed();
+    assert(b.take_outgoing() == null);
+}
+
 int main(string[] args) {
     Test.init(ref args);
     Test.add_func("/collab/text-converges", test_text_converges);
@@ -151,5 +178,6 @@ int main(string[] args) {
     Test.add_func("/collab/document-update", test_document_update_diff);
     Test.add_func("/collab/binding-diff", test_text_binding_diff);
     Test.add_func("/collab/binding-roundtrip", test_text_binding_roundtrip);
+    Test.add_func("/collab/units-reencoding", test_units_binding_reencoding);
     return Test.run();
 }

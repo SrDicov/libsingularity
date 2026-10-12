@@ -11,7 +11,7 @@ namespace Singularity.Collab {
         private TextSetter setter;
         private string last;
         private bool applying = false;
-        private uint pending = 0;
+        private bool dirty = false;
         private string pending_author = "";
 
         public TextBinding(Text text, owned TextGetter getter, owned TextSetter setter) {
@@ -22,6 +22,7 @@ namespace Singularity.Collab {
             text.before_remote.connect(local_changed);
             text.inserted.connect((o, s, author) => remote(author));
             text.removed.connect((o, n, author) => remote(author));
+            text.after_remote.connect(apply_remote);
         }
 
         public static void diff(string before, string after, out int start, out int removed, out string inserted) {
@@ -69,15 +70,16 @@ namespace Singularity.Collab {
 
         private void remote(string author) {
             pending_author = author;
-            if (pending != 0) return;
-            pending = Idle.add(() => {
-                pending = 0;
-                last = text.to_string();
-                applying = true;
-                setter(last, pending_author);
-                applying = false;
-                return Source.REMOVE;
-            });
+            dirty = true;
+        }
+
+        private void apply_remote() {
+            if (!dirty) return;
+            dirty = false;
+            last = text.to_string();
+            applying = true;
+            setter(last, pending_author);
+            applying = false;
         }
     }
 
@@ -86,7 +88,6 @@ namespace Singularity.Collab {
         private UnitsGetter getter;
         private UnitsSetter setter;
         private Gee.HashMap<string, string?> incoming = new Gee.HashMap<string, string?>();
-        private uint pending = 0;
         private string pending_author = "";
         private bool applying = false;
 
@@ -98,22 +99,34 @@ namespace Singularity.Collab {
             document.changed.connect((key, value, author) => {
                 incoming[key] = value;
                 pending_author = author;
-                if (pending != 0) return;
-                pending = Idle.add(() => {
-                    pending = 0;
-                    var batch = incoming;
-                    incoming = new Gee.HashMap<string, string?>();
-                    applying = true;
-                    setter(batch, pending_author);
-                    applying = false;
-                    return Source.REMOVE;
-                });
             });
+            document.after_remote.connect(apply_remote);
+        }
+
+        private void apply_remote() {
+            if (incoming.size == 0) return;
+            var batch = incoming;
+            incoming = new Gee.HashMap<string, string?>();
+            applying = true;
+            setter(batch, pending_author);
+            applying = false;
+            adopt_local(batch.keys);
         }
 
         public void local_changed() {
             if (applying) return;
             document.update(getter());
+        }
+
+        public void adopt_local(Gee.Collection<string>? keys = null) {
+            var local = getter();
+            if (keys == null) {
+                foreach (var e in local.entries) document.adopt(e.key, e.value);
+                return;
+            }
+            foreach (string k in keys) {
+                if (local.has_key(k)) document.adopt(k, local[k]);
+            }
         }
     }
 
@@ -194,6 +207,17 @@ namespace Singularity.Collab {
             hosting = false;
             people.add(host_name);
             wire(session_id);
+        }
+
+        public async bool resume(string session_id, bool as_host, string host_name) {
+            string snapshot;
+            var ops = yield Client.get_default().replay(session_id, out snapshot);
+            if (ops == null) return false;
+            hosting = as_host;
+            if (!as_host && !people.contains(host_name)) people.add(host_name);
+            wire(session_id);
+            foreach (string op in ops) model.merge("", op);
+            return true;
         }
 
         public void pick_and_share(Gtk.Widget anchor, owned PersonPicked? shared = null) {

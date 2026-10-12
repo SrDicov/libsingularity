@@ -266,6 +266,19 @@ namespace Singularity.Collab {
             return out;
         }
 
+        public async string[]? replay(string session, out string snapshot) {
+            snapshot = "";
+            if (!installed()) return null;
+            try {
+                var r = yield invoke("Replay", new Variant("(s)", session), "(sas)");
+                snapshot = r.get_child_value(0).get_string();
+                return r.get_child_value(1).get_strv();
+            } catch (Error e) {
+                debug("collab: %s", e.message);
+                return null;
+            }
+        }
+
         public async void update_snapshot(string session, string snapshot) {
             try {
                 yield invoke("UpdateSnapshot", new Variant("(ss)", session, snapshot));
@@ -341,6 +354,7 @@ namespace Singularity.Collab {
 
         public signal void presence(string author, Json.Object state);
         public signal void before_remote();
+        public signal void after_remote();
         public signal void ended();
 
         construct {
@@ -351,6 +365,13 @@ namespace Singularity.Collab {
             detach();
             session = session_id;
             Client.get_default().attach(this);
+            if (outgoing != null && flush_id == 0) {
+                flush_id = Timeout.add(40, () => {
+                    flush_id = 0;
+                    flush();
+                    return Source.REMOVE;
+                });
+            }
         }
 
         public void detach() {
@@ -418,6 +439,7 @@ namespace Singularity.Collab {
                 before_remote();
                 var ops = o.get_array_member("o");
                 for (uint i = 0; i < ops.get_length(); i++) apply(ops.get_element(i), author);
+                after_remote();
             }
         }
 
