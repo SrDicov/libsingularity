@@ -143,6 +143,7 @@ libsingularity_sources = files(
   'src/ui/visual/search_bubble.vala',
   'src/ui/visual/floating_panel.vala',
   'src/ui/visual/avatar.vala',
+  'src/ui/visual/tile_cache.vala',
   'src/ui/visual/large_icon.vala',
   'src/ui/visual/clamp.vala',
   'src/ui/visual/theme_preview.vala',
