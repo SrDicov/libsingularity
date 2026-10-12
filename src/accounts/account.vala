@@ -195,6 +195,7 @@ namespace Singularity.Accounts {
 
         private string token_key(Capability capability) {
             if (provider == "microsoft" && capability == Capability.MAIL) return "mail";
+            if (provider == "microsoft" && capability == Capability.CHAT) return "graph-chat";
             return provider == "microsoft" ? "graph" : "default";
         }
 

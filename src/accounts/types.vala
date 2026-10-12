@@ -41,7 +41,8 @@ namespace Singularity.Accounts {
         NOTES,
         PHOTOS,
         MUSIC,
-        VIDEOS;
+        VIDEOS,
+        CHAT;
 
         /** Stable identifier used in D-Bus calls and stored metadata. */
         public string to_id() {
@@ -54,6 +55,7 @@ namespace Singularity.Accounts {
                 case PHOTOS: return "photos";
                 case MUSIC: return "music";
                 case VIDEOS: return "videos";
+                case CHAT: return "chat";
                 default: return "notes";
             }
         }
@@ -76,6 +78,7 @@ namespace Singularity.Accounts {
                 case "photos": result = PHOTOS; return true;
                 case "music": result = MUSIC; return true;
                 case "videos": result = VIDEOS; return true;
+                case "chat": result = CHAT; return true;
                 default: result = MAIL; return false;
             }
         }
@@ -91,6 +94,7 @@ namespace Singularity.Accounts {
                 case PHOTOS: return _("Photos");
                 case MUSIC: return _("Music");
                 case VIDEOS: return _("Videos");
+                case CHAT: return _("Chat");
                 default: return _("Notes");
             }
         }
@@ -106,13 +110,14 @@ namespace Singularity.Accounts {
                 case PHOTOS: return "image-x-generic-symbolic";
                 case MUSIC: return "audio-x-generic-symbolic";
                 case VIDEOS: return "video-x-generic-symbolic";
+                case CHAT: return "chat-message-new-symbolic";
                 default: return "accessories-text-editor-symbolic";
             }
         }
 
         /** Every capability, in display order. */
         public static Capability[] all() {
-            return { MAIL, CALENDAR, CONTACTS, TASKS, FILES, PHOTOS, MUSIC, VIDEOS, NOTES };
+            return { MAIL, CALENDAR, CONTACTS, TASKS, FILES, PHOTOS, MUSIC, VIDEOS, CHAT, NOTES };
         }
     }
 

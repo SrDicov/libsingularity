@@ -38,6 +38,7 @@ namespace Singularity {
         public const string SPREADSHEET = "dev.sinty.Spreadsheet1";
         public const string MAIL = "dev.sinty.Lettere.Mail";
         public const string COLLAB = "dev.sinty.Collab1";
+        public const string MESSAGES = "dev.sinty.Messages1";
     }
 
     public class Capabilities : Object {
