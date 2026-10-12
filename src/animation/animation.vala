@@ -68,6 +68,7 @@ namespace Singularity.Animation {
         private double raw_elapsed = 0.0;
         private ulong unrealize_id = 0;
         private ValueSink? sink = null;
+        private bool immediate = false;
 
         /** Current playback state of this animation. */
         public AnimationState state { get; protected set; default = AnimationState.IDLE; }
@@ -157,12 +158,17 @@ namespace Singularity.Animation {
             if (state != AnimationState.PAUSED) {
                 raw_elapsed = 0.0;
                 reduced = motion.is_reduced() && reduced_mode != ReducedMode.FULL;
+                immediate = !motion.animations_enabled && reduced_mode != ReducedMode.FULL;
                 on_begin();
             }
             state = AnimationState.PLAYING;
             last_time = motion.now_for(widget);
             motion.register(this);
             attach();
+            if (immediate) {
+                on_finish();
+                if (sink != null) sink(current_value());
+            }
         }
 
         /** Pauses the animation at the current frame. Call `play()` to resume. */
@@ -220,7 +226,7 @@ namespace Singularity.Animation {
                 raw_elapsed += (now - last_time) / 1000.0 / Singularity.Motion.get_default().duration_scale.clamp(0.01, 100.0);
             }
             if (now >= 0) last_time = now;
-            if (reduced && reduced_mode == ReducedMode.JUMP) {
+            if (immediate || (reduced && reduced_mode == ReducedMode.JUMP)) {
                 on_finish();
                 tick();
                 stop();

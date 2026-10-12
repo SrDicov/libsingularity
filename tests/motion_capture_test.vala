@@ -128,6 +128,64 @@ void test_capture_rejects_unmapped() {
     assert(!Motion.capture(label, Path.build_filename(output_dir, "hidden.png")));
 }
 
+void test_disabled_animations() {
+    if (!gtk_ready) {
+        Test.skip("no display");
+        return;
+    }
+    var settings = Gtk.Settings.get_default();
+    bool enabled = settings.gtk_enable_animations;
+    var motion = Motion.get_default();
+    motion.reduce_motion = false;
+    motion.use_manual_clock(0);
+    settings.gtk_enable_animations = false;
+    var bin = new MotionBin(new Label("Immediate visual state"));
+    var group = Motion.reveal(bin, Motion.Preset.SCALE_FADE);
+    int done = 0;
+    group.done.connect(() => done++);
+    assert(bin.opacity == 1 && bin.is_identity && group.is_running && done == 0);
+    motion.advance(1);
+    assert(done == 1 && !group.is_running && motion.active_count == 0);
+    motion.advance(1);
+    assert(done == 1);
+    group = Motion.conceal(bin, Motion.Preset.SCALE_FADE);
+    group.done.connect(() => done++);
+    assert(bin.opacity == 0 && bin.is_identity && done == 1);
+    motion.advance(1);
+    assert(done == 2 && !group.is_running && motion.active_count == 0);
+
+    foreach (var mode in new ReducedMode[] { ReducedMode.JUMP, ReducedMode.SHORTEN }) {
+        var animation = new TimedAnimation(null, 0, 1, 220);
+        animation.reduced_mode = mode;
+        animation.delay = 1000;
+        int completed = 0;
+        animation.done.connect(() => completed++);
+        animation.play();
+        assert(animation.value == 1 && completed == 0);
+        motion.advance(1);
+        assert(completed == 1 && motion.active_count == 0);
+    }
+    var full = new TimedAnimation(null, 0, 1, 220);
+    full.reduced_mode = ReducedMode.FULL;
+    full.play();
+    assert(full.value == 0);
+    motion.advance(110);
+    assert(full.value > 0 && full.value < 1);
+    full.skip();
+
+    settings.gtk_enable_animations = true;
+    motion.reduce_motion = true;
+    group = Motion.reveal(bin);
+    assert(bin.opacity == 0 && group.is_running);
+    motion.advance(70);
+    assert(bin.opacity > 0 && bin.opacity < 1);
+    group.skip();
+    assert(bin.opacity == 1 && motion.active_count == 0);
+    motion.reduce_motion = false;
+    motion.use_frame_clock();
+    settings.gtk_enable_animations = enabled;
+}
+
 int main(string[] args) {
     Test.init(ref args);
     Log.set_always_fatal(LogLevelFlags.LEVEL_ERROR | LogLevelFlags.LEVEL_CRITICAL);
@@ -149,6 +207,7 @@ int main(string[] args) {
     gtk_ready = display != null && Gtk.init_check();
     Test.add_func("/motion-capture/follows-manual-clock", test_capture_follows_manual_clock);
     Test.add_func("/motion-capture/rejects-unmapped", test_capture_rejects_unmapped);
+    Test.add_func("/motion-capture/disabled-animations", test_disabled_animations);
     int result = Test.run();
     if (display != null) {
         display.send_signal(Posix.Signal.TERM);
