@@ -2150,10 +2150,6 @@ window.app-menu-window {
     box-shadow: 0 1px 0 alpha(white, 0.18) inset;
 }
 
-.singularity-liquid .singularity-app-frame {
-    background-color: alpha(@window_bg, 0.65);
-}
-
 /* Remove shadow on tiled/maximised/SSD states */
 .singularity-app.no-rounded-corners,
 .singularity-app.maximized,

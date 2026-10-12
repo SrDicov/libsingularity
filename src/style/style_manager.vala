@@ -367,12 +367,18 @@ namespace Singularity.Style {
             _parse_hex(base_bg, out red, out green, out blue);
             string background = "rgba(%u, %u, %u, %d.%02d)".printf(
                 red, green, blue, opacity / 100, opacity % 100);
+            int liquid_opacity = int.min(opacity, 65);
+            string liquid_background = "rgba(%u, %u, %u, %d.%02d)".printf(
+                red, green, blue, liquid_opacity / 100, liquid_opacity % 100);
             string css = """
                 .singularity-blur .singularity-app-frame,
                 .singularity-glass .singularity-app-frame {
                     background-color: %s;
                 }
-            """.printf(background);
+                .singularity-liquid .singularity-app-frame {
+                    background-color: %s;
+                }
+            """.printf(background, liquid_background);
 
             if (material_provider == null) {
                 material_provider = new CssProvider();
