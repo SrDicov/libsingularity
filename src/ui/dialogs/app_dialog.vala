@@ -37,6 +37,9 @@ namespace Singularity.Widgets {
         private Singularity.Animation.MotionBin _card_motion;
         private bool       _closing = false;
         private bool       _destroyed = false;
+        private GLib.Settings? _desktop_settings;
+        private ulong _effect_handler = 0;
+        private Singularity.Style.BackgroundEffectMode _effect_mode;
 
         /** Toggle the close button at runtime. Same as `show_close_button`. */
         public bool closable {
@@ -117,6 +120,18 @@ namespace Singularity.Widgets {
             outer.append(_card_motion);
             set_child(outer);
 
+            _desktop_settings = Singularity.Core.safe_settings(
+                Singularity.Runtime.desktop_settings_schema);
+            if (_desktop_settings != null) {
+                _effect_handler = _desktop_settings.changed.connect((key) => {
+                    if (key == "background-effect" || key == "blur-strength") {
+                        update_background_effect();
+                        queue_draw();
+                    }
+                });
+            }
+            update_background_effect();
+
             this.modal = use_modal;
             set_decorated(false);
 
@@ -147,6 +162,29 @@ namespace Singularity.Widgets {
             sync_titlebar();
 
             set_default_size(400, 500);
+        }
+
+        private void update_background_effect() {
+            _effect_mode = Singularity.Style.BackgroundEffect.read(_desktop_settings);
+            Singularity.Style.BackgroundEffect.update_classes(this, _effect_mode);
+        }
+
+        public override void size_allocate(int width, int height, int baseline) {
+            base.size_allocate(width, height, baseline);
+            Singularity.Style.BackgroundEffect.apply_card(this, _card_motion, _effect_mode);
+        }
+
+        public override void snapshot(Gtk.Snapshot snapshot) {
+            Singularity.Style.BackgroundEffect.apply_card(this, _card_motion, _effect_mode);
+            base.snapshot(snapshot);
+        }
+
+        public override void dispose() {
+            if (_effect_handler != 0 && _desktop_settings != null) {
+                _desktop_settings.disconnect(_effect_handler);
+                _effect_handler = 0;
+            }
+            base.dispose();
         }
 
         /**

@@ -3,12 +3,14 @@ namespace Singularity.Style {
     public enum BackgroundEffectMode {
         DISABLED,
         GLASS,
-        BLUR;
+        BLUR,
+        LIQUID;
 
         public static BackgroundEffectMode from_token(string token) {
             switch (token) {
                 case "glass": return GLASS;
                 case "blur": return BLUR;
+                case "liquid": return LIQUID;
                 default: return DISABLED;
             }
         }
@@ -17,6 +19,7 @@ namespace Singularity.Style {
             switch (this) {
                 case GLASS: return "glass";
                 case BLUR: return "blur";
+                case LIQUID: return "liquid";
                 default: return "disabled";
             }
         }
@@ -26,6 +29,19 @@ namespace Singularity.Style {
     private extern void set_native_surface_effect(Gtk.Widget widget, uint32 mode,
                                                    int x, int y, int width, int height,
                                                    uint32 strength);
+
+    [CCode (cname = "singularity_surface_effect_set_card", cheader_filename = "wayland/surface_effect.h")]
+    private extern bool set_native_card_effect(Gtk.Widget window, Gtk.Widget bin,
+        Gtk.Widget card, Gsk.Transform? transform, uint32 mode, uint32 strength,
+        bool visible);
+
+    [CCode (cname = "singularity_surface_effect_set_frame", cheader_filename = "wayland/surface_effect.h")]
+    private extern bool set_native_frame_effect(Gtk.Widget window, Gtk.Widget frame,
+        uint32 mode, uint32 strength);
+
+    [CCode (cname = "singularity_surface_effect_set_shapes", cheader_filename = "wayland/surface_effect.h")]
+    private extern bool set_native_shapes_effect(Gtk.Widget window,
+        [CCode (array_length_type = "int")] Gtk.Widget[] shapes, uint32 mode, uint32 strength);
 
     public class BackgroundEffect : Object {
 
@@ -53,15 +69,51 @@ namespace Singularity.Style {
             return source.get_int("blur-strength").clamp(0, 100);
         }
 
-        public static void apply(Gtk.Widget widget, BackgroundEffectMode mode,
-                                 int x = 0, int y = 0, int width = 0, int height = 0) {
-            if (mode != BackgroundEffectMode.GLASS) widget.remove_css_class("singularity-glass");
+        internal static void apply_card(Gtk.Widget window, Singularity.Animation.MotionBin bin,
+                                        BackgroundEffectMode mode) {
+            if (bin.child == null) return;
+            set_native_card_effect(window, bin, bin.child, bin.uses_native_transform ? null : bin.get_visual_transform(),
+                (uint32) mode, (uint32) Math.round(read_strength() * bin.opacity),
+                bin.opacity > 0);
+        }
+
+        internal static void update_classes(Gtk.Widget widget, BackgroundEffectMode mode) {
+            bool glass = mode == BackgroundEffectMode.GLASS || mode == BackgroundEffectMode.LIQUID;
+            if (!glass) widget.remove_css_class("singularity-glass");
+            if (mode != BackgroundEffectMode.LIQUID) widget.remove_css_class("singularity-liquid");
             if (mode != BackgroundEffectMode.BLUR) widget.remove_css_class("singularity-blur");
-            if (mode == BackgroundEffectMode.GLASS) {
+            if (mode == BackgroundEffectMode.LIQUID) widget.add_css_class("singularity-liquid");
+            if (glass) {
                 widget.add_css_class("singularity-glass");
             } else if (mode == BackgroundEffectMode.BLUR) {
                 widget.add_css_class("singularity-blur");
             }
+        }
+
+        internal static void apply_frame(Gtk.Widget window, Gtk.Widget frame,
+                                         BackgroundEffectMode mode) {
+            update_classes(window, mode);
+            if (!window.get_mapped()) return;
+            if (set_native_frame_effect(window, frame, (uint32) mode, (uint32) read_strength())) return;
+            Graphene.Rect bounds;
+            if (frame.compute_bounds(window, out bounds)) {
+                set_native_surface_effect(window, (uint32) mode,
+                    (int) bounds.origin.x, (int) bounds.origin.y,
+                    (int) bounds.size.width, (int) bounds.size.height, (uint32) read_strength());
+            }
+        }
+
+        public static void apply_shapes(Gtk.Widget window, Gtk.Widget[] shapes,
+                                        BackgroundEffectMode mode) {
+            update_classes(window, mode);
+            if (!window.get_mapped()) return;
+            if (set_native_shapes_effect(window, shapes, (uint32) mode, (uint32) read_strength())) return;
+            set_native_surface_effect(window, (uint32) mode, 0, 0, 0, 0, (uint32) read_strength());
+        }
+
+        public static void apply(Gtk.Widget widget, BackgroundEffectMode mode,
+                                 int x = 0, int y = 0, int width = 0, int height = 0) {
+            update_classes(widget, mode);
             if (widget.get_mapped()) {
                 set_native_surface_effect(widget, (uint32) mode,
                     x, y, width, height, (uint32) read_strength());

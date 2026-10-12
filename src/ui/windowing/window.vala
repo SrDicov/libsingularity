@@ -17,11 +17,22 @@ namespace Singularity.Widgets {
     private class RoundedFrame : Gtk.Box {
         private const float CORNER_RADIUS = 12.0f;
 
+        [CCode (cname = "singularity_widget_get_border_box", cheader_filename = "wayland/surface_effect.h")]
+        private static extern bool get_native_border_box(Gtk.Widget widget, out Gsk.RoundedRect box);
+
         public RoundedFrame() {
             Object(orientation: Gtk.Orientation.VERTICAL, spacing: 0);
         }
 
         public override void snapshot(Gtk.Snapshot snap) {
+            Gsk.RoundedRect border_box;
+            if (get_native_border_box(this, out border_box)) {
+                snap.push_rounded_clip(border_box);
+                base.snapshot(snap);
+                snap.pop();
+                return;
+            }
+
             float radius = CORNER_RADIUS;
 
             // Disable rounding in states that need sharp/full edges
@@ -144,6 +155,9 @@ namespace Singularity.Widgets {
         public bool floating_bubbles { get { return !_force_ssd && !_legacy_titlebar; } }
         private WindowHandle? _flat_drag_handle  = null;
         private Button?       _flat_close_btn    = null;
+        [CCode (cname = "singularity_window_set_border_widget", cheader_filename = "wayland/surface_effect.h")]
+        private static extern bool set_native_border_widget(Gtk.Window window, Gtk.Widget? frame);
+
         private RoundedFrame? _app_frame         = null;
         private ulong _rounded_corners_handler = 0;
         private ulong _toolbar_static_handler  = 0;
@@ -224,6 +238,7 @@ namespace Singularity.Widgets {
         construct {
             add_css_class("singularity");
             add_css_class("singularity-app");
+            overflow = Gtk.Overflow.VISIBLE;
 
             desktop_settings = Singularity.Core.safe_settings(Singularity.Runtime.desktop_settings_schema);
             _force_ssd = desktop_settings != null && desktop_settings.get_boolean("force-ssd");
@@ -260,6 +275,7 @@ namespace Singularity.Widgets {
             // so the compositor sees the card as the real window.
             set_child(app_frame);
             _app_frame = app_frame;
+            set_native_border_widget(this, app_frame);
 
             _apply_background_effect();
             if (desktop_settings != null
@@ -516,19 +532,14 @@ namespace Singularity.Widgets {
         }
 
         private void _apply_background_effect() {
+            if (_app_frame == null) return;
             var mode = Singularity.Style.BackgroundEffect.read(desktop_settings);
-            if (!get_mapped() || mode == Singularity.Style.BackgroundEffectMode.DISABLED
-                    || _app_frame == null) {
-                Singularity.Style.BackgroundEffect.apply(this, mode);
-                return;
-            }
+            Singularity.Style.BackgroundEffect.apply_frame(this, _app_frame, mode);
+        }
 
-            Graphene.Rect bounds;
-            if (_app_frame.compute_bounds(this, out bounds)) {
-                Singularity.Style.BackgroundEffect.apply(this, mode,
-                    (int) bounds.origin.x, (int) bounds.origin.y,
-                    (int) bounds.size.width, (int) bounds.size.height);
-            }
+        public override void snapshot(Gtk.Snapshot snapshot) {
+            _apply_background_effect();
+            base.snapshot(snapshot);
         }
 
         public override void size_allocate(int width, int height, int baseline) {
