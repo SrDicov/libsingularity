@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<schemalist>
+  <schema id="dev.sinty.spelltest" path="/dev/sinty/spelltest/">
+    <key name="spell-check-enabled" type="b"><default>true</default></key>
+    <key name="spell-check-languages" type="as"><default>['en_US']</default></key>
+  </schema>
+</schemalist>

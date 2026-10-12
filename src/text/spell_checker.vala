@@ -38,6 +38,12 @@ namespace Singularity.Text {
         public static SpellChecker for_language(string language) {
             string tag = language.strip().replace("-", "_");
             if (tag == "") return get_default();
+            var parts = tag.split("_");
+            parts[0] = parts[0].down();
+            for (int i = 1; i < parts.length; i++) {
+                if (parts[i].length == 2) parts[i] = parts[i].up();
+            }
+            tag = string.joinv("_", parts);
             if (languages == null) languages = new Gee.HashMap<string, SpellChecker>();
             if (!languages.has_key(tag)) languages[tag] = new SpellChecker(tag);
             return languages[tag];
@@ -67,6 +73,15 @@ namespace Singularity.Text {
             if (language != null) {
                 string tag = language;
                 if (broker.dict_exists(tag) == 0) tag = tag.split("_")[0];
+                if (broker.dict_exists(tag) == 0) {
+                    string prefix = tag + "_";
+                    broker.list_dicts((available, provider, description, file) => {
+                        if (!available.has_prefix(prefix)) return;
+                        unowned Enchant.Dict? regional = broker.request_dict(available);
+                        if (regional != null) dicts += regional;
+                    });
+                    return;
+                }
                 if (broker.dict_exists(tag) != 0) {
                     unowned Enchant.Dict? dict = broker.request_dict(tag);
                     if (dict != null) dicts += dict;

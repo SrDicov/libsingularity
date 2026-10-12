@@ -897,6 +897,23 @@ test('context-ribbon', context_ribbon_test, depends: [toolbar_test_schemas],
   env: ['TMPDIR=' + meson.current_build_dir(), 'GSETTINGS_BACKEND=memory', 'GSETTINGS_SCHEMA_DIR=' + meson.current_build_dir() / 'toolbar-schemas',
         'XDG_DATA_DIRS=' + meson.current_build_dir() / 'toolbar-schemas', 'XDG_DATA_HOME=' + meson.current_build_dir() / 'toolbar-schemas'])
 
+spell_test_schemas = custom_target('spell-test-schemas',
+  input: 'tests/fixtures/spell/dev.sinty.spelltest.gschema.xml',
+  output: 'spell-schemas',
+  command: ['sh', '-c', 'mkdir -p "$1" && glib-compile-schemas --strict --targetdir "$1" "$2"', 'sh', '@OUTPUT@', meson.current_source_dir() / 'tests' / 'fixtures' / 'spell'],
+)
+
+spell_integration_test = executable(
+  'spell-integration-test',
+  files('tests/spell_integration_test.vala', 'tests/spell_probe.c'),
+  include_directories: include_directories('tests'),
+  dependencies: [libsingularity_dep, enchant_dep, cc.find_library('dl', required: false)],
+  export_dynamic: true,
+)
+test('spell-integration', spell_integration_test, depends: [spell_test_schemas],
+  env: ['TMPDIR=' + meson.current_build_dir(), 'GSETTINGS_BACKEND=memory',
+        'GSETTINGS_SCHEMA_DIR=' + meson.current_build_dir() / 'spell-schemas'])
+
 motion_test = executable(
   'motion-test',
   files('tests/motion_test.vala'),
