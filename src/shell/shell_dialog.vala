@@ -43,7 +43,6 @@ namespace Singularity.Shell {
          */
         public bool card { get; construct; default = false; }
 
-        private GLib.Settings? effect_settings;
         private bool overlay_full = false;
 
         /**
@@ -87,18 +86,20 @@ namespace Singularity.Shell {
                 margin_bottom_value: margin
             );
         }
-        private void update_background_effect() {
-            var mode = Singularity.Style.BackgroundEffect.read(effect_settings);
-            if (overlay_full) {
-                Singularity.Style.BackgroundEffect.apply(this, mode);
-            } else if (card) {
-                Singularity.Style.BackgroundEffect.apply_shapes(this, new Gtk.Widget[] { content_box }, mode);
-            }
+        private Gtk.Widget[] glass_shapes() {
+            if (overlay_full || card) return new Gtk.Widget[] { content_box };
+            var found = find_card(content_box);
+            if (found != null) return new Gtk.Widget[] { found };
+            return new Gtk.Widget[] {};
         }
 
-        public override void size_allocate(int width, int height, int baseline) {
-            base.size_allocate(width, height, baseline);
-            update_background_effect();
+        private static Gtk.Widget? find_card(Gtk.Widget widget) {
+            for (var child = widget.get_first_child(); child != null; child = child.get_next_sibling()) {
+                if (child.has_css_class("dialog-card") || child.has_css_class("power-card")) return child;
+                var nested = find_card(child);
+                if (nested != null) return nested;
+            }
+            return null;
         }
 
         construct {
@@ -150,11 +151,7 @@ namespace Singularity.Shell {
                 set_child(content_box);
             }
 
-            effect_settings = Singularity.Core.safe_settings(Singularity.Runtime.desktop_settings_schema);
-            if (effect_settings != null && effect_settings.settings_schema.has_key("background-effect")) {
-                effect_settings.changed["background-effect"].connect(update_background_effect);
-            }
-            map.connect_after(update_background_effect);
+            Singularity.Style.BackgroundEffect.track(this, glass_shapes);
 
             var key_controller = new EventControllerKey();
             key_controller.key_pressed.connect((keyval, keycode, state) => {

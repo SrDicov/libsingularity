@@ -355,6 +355,14 @@ namespace Singularity.Style {
                 material_settings.changed["window-transparency"].connect(
                     update_material_style);
             }
+            if (material_settings != null
+                    && material_settings.settings_schema.has_key("glass-tint")) {
+                material_settings.changed["glass-tint"].connect(update_material_style);
+            }
+            if (material_settings != null
+                    && material_settings.settings_schema.has_key("card-transparency")) {
+                material_settings.changed["card-transparency"].connect(update_material_style);
+            }
             update_material_style();
         }
 
@@ -365,25 +373,48 @@ namespace Singularity.Style {
                 transparency = material_settings.get_int("window-transparency").clamp(0, 90);
             }
             int opacity = 100 - transparency;
-            string base_bg = _mix_hex(current_dark_mode ? "#242424" : "#f6f5f4", accent_hex, 0.08);
+            double tint = 0.08;
+            if (material_settings != null
+                    && material_settings.settings_schema.has_key("glass-tint")) {
+                tint = material_settings.get_int("glass-tint").clamp(0, 40) / 100.0;
+            }
+            string base_bg = _mix_hex(current_dark_mode ? "#242424" : "#f6f5f4", accent_hex, tint);
             uint8 red, green, blue;
             _parse_hex(base_bg, out red, out green, out blue);
-            string panel_glass = _mix_rgba(current_dark_mode ? "#000000" : "#f8f8f8", accent_hex, 0.10, 0.14);
-            string panel_blur = _mix_rgba(current_dark_mode ? "#000000" : "#f8f8f8", accent_hex, 0.10, 0.26);
+            string panel_glass = _mix_rgba(current_dark_mode ? "#000000" : "#f8f8f8", accent_hex, tint * 1.25, 0.14);
+            string panel_blur = _mix_rgba(current_dark_mode ? "#000000" : "#f8f8f8", accent_hex, tint * 1.25, 0.26);
             string background = "rgba(%u, %u, %u, %d.%02d)".printf(
                 red, green, blue, opacity / 100, opacity % 100);
             int liquid_opacity = int.min(opacity, 65);
             string liquid_background = "rgba(%u, %u, %u, %d.%02d)".printf(
                 red, green, blue, liquid_opacity / 100, liquid_opacity % 100);
+            int card_transparency = transparency;
+            if (material_settings != null
+                    && material_settings.settings_schema.has_key("card-transparency")) {
+                card_transparency = material_settings.get_int("card-transparency").clamp(0, 90);
+            }
+            int card_opacity = 100 - card_transparency;
+            string card_background = "rgba(%u, %u, %u, %d.%02d)".printf(
+                red, green, blue, card_opacity / 100, card_opacity % 100);
+            int card_liquid_opacity = int.min(card_opacity, 65);
+            string card_liquid_background = "rgba(%u, %u, %u, %d.%02d)".printf(
+                red, green, blue, card_liquid_opacity / 100, card_liquid_opacity % 100);
             string css = """
                 .singularity-blur .singularity-app-frame,
-                .singularity-glass .singularity-app-frame,
-                .singularity-blur .dialog-card,
-                .singularity-glass .dialog-card {
+                .singularity-glass .singularity-app-frame {
                     background-color: %s;
                 }
-                .singularity-liquid .singularity-app-frame,
-                .singularity-liquid .dialog-card {
+                .singularity-liquid .singularity-app-frame {
+                    background-color: %s;
+                }
+                .singularity-blur .dialog-card,
+                .singularity-glass .dialog-card,
+                .singularity-blur.dialog-overlay .dialog-content,
+                .singularity-glass.dialog-overlay .dialog-content {
+                    background-color: %s;
+                }
+                .singularity-liquid .dialog-card,
+                .singularity-liquid.dialog-overlay .dialog-content {
                     background-color: %s;
                 }
                 .singularity-blur .osd-pill,
@@ -419,7 +450,8 @@ namespace Singularity.Style {
                 .singularity-blur .panel {
                     background-color: %s;
                 }
-            """.printf(background, liquid_background, background, liquid_background, background, liquid_background, panel_glass, panel_blur);
+            """.printf(background, liquid_background, card_background, card_liquid_background, card_background,
+                card_liquid_background, card_background, card_liquid_background, panel_glass, panel_blur);
 
             if (material_provider == null) {
                 material_provider = new CssProvider();
