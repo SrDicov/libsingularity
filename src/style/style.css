@@ -581,7 +581,7 @@ window.singularity-glass .panel,
 .singularity-glass .panel {
     background-color: alpha(@panel_bg, 0.12);
     border-bottom: 1px solid alpha(@text_color, 0.14);
-    box-shadow: 0 1px 0 alpha(white, 0.16) inset;
+    box-shadow: none;
 }
 
 .panel.no-transition {
