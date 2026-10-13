@@ -290,8 +290,10 @@ namespace Singularity.Pdf {
         private static string[] field_list(string arg) {
             string a = arg.strip();
             string[] names = {};
-            if (a.has_prefix("new Array(")) a = a.substring(10, a.length - 11);
-            else if (a.has_prefix("[")) a = a.substring(1, a.length - 2);
+            if (a.has_prefix("new") && a.substring(3).strip().has_prefix("Array") && a.index_of_char('(') > 0 && a.has_suffix(")")) {
+                int open = a.index_of_char('(');
+                a = a.substring(open + 1, a.length - open - 2);
+            } else if (a.has_prefix("[")) a = a.substring(1, a.length - 2);
             else {
                 foreach (var part in unquote(a).split(",")) names += part.strip();
                 return names;

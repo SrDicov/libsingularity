@@ -772,28 +772,7 @@ namespace Singularity.Pdf {
             if (start < 0) return values;
             int end = xml.index_of("</xfa:data>", start);
             string data = end > 0 ? xml.substring(start, end - start + 11) : xml.substring(start);
-            var stack = new Gee.ArrayList<string>();
-            var text = new StringBuilder();
-            var parser = MarkupParser() {
-                start_element = (ctx, name, n, v) => {
-                    stack.add(name);
-                    text.truncate();
-                },
-                end_element = (ctx, name) => {
-                    if (text.str.strip() != "" && stack.size > 1) values[stack[stack.size - 1]] = text.str.strip();
-                    if (stack.size > 0) stack.remove_at(stack.size - 1);
-                    text.truncate();
-                },
-                text = (ctx, t, len) => {
-                    text.append_len(t, (ssize_t) len);
-                }
-            };
-            var ctx = new MarkupParseContext(parser, MarkupParseFlags.TREAT_CDATA_AS_TEXT, null, null);
-            try {
-                ctx.parse(data, -1);
-                ctx.end_parse();
-            } catch (Error e) {
-            }
+            new XfaCollector(values).parse(data);
             return values;
         }
 
@@ -931,6 +910,45 @@ namespace Singularity.Pdf {
             }
             string s = clean.str.strip();
             return s.char_count() > 40 ? s.substring(0, s.index_of_nth_char(40)) : s;
+        }
+    }
+
+    private class XfaCollector {
+        private Gee.HashMap<string, string> values;
+        private Gee.ArrayList<string> stack = new Gee.ArrayList<string>();
+        private StringBuilder buffer = new StringBuilder();
+
+        public XfaCollector(Gee.HashMap<string, string> values) {
+            this.values = values;
+        }
+
+        public void parse(string data) {
+            var parser = MarkupParser() {
+                start_element = on_start,
+                end_element = on_end,
+                text = on_text
+            };
+            var ctx = new MarkupParseContext(parser, MarkupParseFlags.TREAT_CDATA_AS_TEXT, this, null);
+            try {
+                ctx.parse(data, -1);
+                ctx.end_parse();
+            } catch (Error e) {
+            }
+        }
+
+        private void on_start(MarkupParseContext ctx, string name, string[] names, string[] attrs) throws MarkupError {
+            stack.add(name);
+            buffer.truncate();
+        }
+
+        private void on_end(MarkupParseContext ctx, string name) throws MarkupError {
+            if (buffer.str.strip() != "" && stack.size > 1) values[stack[stack.size - 1]] = buffer.str.strip();
+            if (stack.size > 0) stack.remove_at(stack.size - 1);
+            buffer.truncate();
+        }
+
+        private void on_text(MarkupParseContext ctx, string t, size_t len) throws MarkupError {
+            buffer.append_len(t, (ssize_t) len);
         }
     }
 }
