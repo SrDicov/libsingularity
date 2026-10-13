@@ -1283,6 +1283,11 @@ popover.dock-window-previews > contents {
 .overview-box {
     background-color: @overview_bg;
 }
+
+.singularity-blur .overview-box,
+.singularity-glass .overview-box {
+    background-color: alpha(@overview_bg, 0.55);
+}
 .hot-corner-window {
     background-color: alpha(@shadow_color, 0.002);
     border: none;
@@ -1314,6 +1319,11 @@ popover.dock-window-previews > contents {
     background-color: @overview_bg;
     padding: 24px 0 12px 0;
     border-bottom: 1px solid alpha(@text_color, 0.1);
+}
+
+.workspace-strip-container.glass {
+    background-color: transparent;
+    border-bottom-color: alpha(white, 0.14);
 }
 
 .window-preview-thumbnail {
@@ -4835,6 +4845,25 @@ button.flat.singularity-hover-btn.suggested-action:active {
 .chip.active {
     background-color: alpha(@accent_color, 0.45);
     border-color: alpha(@accent_color, 0.6);
+}
+
+.singularity-glass .chip-bar {
+    background-color: transparent;
+    border-top-color: alpha(white, 0.10);
+}
+
+.singularity-glass .chip {
+    background-color: alpha(@accent_color, 0.10);
+    background-image: linear-gradient(to bottom, alpha(white, 0.16), alpha(white, 0.03));
+    border: 1px solid alpha(white, 0.22);
+    box-shadow: inset 0 1px 0 alpha(white, 0.35),
+                inset 0 -1px 0 alpha(black, 0.12),
+                0 2px 8px alpha(black, 0.18);
+}
+
+.singularity-glass .chip.active {
+    background-color: alpha(@accent_color, 0.32);
+    border-color: alpha(white, 0.32);
 }
 
 /* Drag-to-reorder: the chip being dragged is dimmed in place while its
