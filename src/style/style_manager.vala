@@ -362,9 +362,11 @@ namespace Singularity.Style {
                 transparency = material_settings.get_int("window-transparency").clamp(0, 90);
             }
             int opacity = 100 - transparency;
-            string base_bg = current_dark_mode ? "#242424" : "#f6f5f4";
+            string base_bg = _mix_hex(current_dark_mode ? "#242424" : "#f6f5f4", accent_hex, 0.08);
             uint8 red, green, blue;
             _parse_hex(base_bg, out red, out green, out blue);
+            string panel_glass = _mix_rgba(current_dark_mode ? "#000000" : "#f8f8f8", accent_hex, 0.10, 0.14);
+            string panel_blur = _mix_rgba(current_dark_mode ? "#000000" : "#f8f8f8", accent_hex, 0.10, 0.26);
             string background = "rgba(%u, %u, %u, %d.%02d)".printf(
                 red, green, blue, opacity / 100, opacity % 100);
             int liquid_opacity = int.min(opacity, 65);
@@ -372,13 +374,40 @@ namespace Singularity.Style {
                 red, green, blue, liquid_opacity / 100, liquid_opacity % 100);
             string css = """
                 .singularity-blur .singularity-app-frame,
-                .singularity-glass .singularity-app-frame {
+                .singularity-glass .singularity-app-frame,
+                .singularity-blur .dialog-card,
+                .singularity-glass .dialog-card {
                     background-color: %s;
                 }
-                .singularity-liquid .singularity-app-frame {
+                .singularity-liquid .singularity-app-frame,
+                .singularity-liquid .dialog-card {
                     background-color: %s;
                 }
-            """.printf(background, liquid_background);
+                .singularity-blur .osd-pill,
+                .singularity-blur .notification-bubble,
+                .singularity-blur .app-menu-card,
+                .singularity-blur .clipboard-popup,
+                .singularity-blur .snap-picker,
+                .singularity-blur .shortcut-cheatsheet {
+                    background-color: %s;
+                }
+                .singularity-glass .osd-pill,
+                .singularity-glass .notification-bubble,
+                .singularity-glass .app-menu-card,
+                .singularity-glass .clipboard-popup,
+                .singularity-glass .snap-picker,
+                .singularity-glass .shortcut-cheatsheet {
+                    background-color: %s;
+                }
+                window.singularity-glass .panel,
+                .singularity-glass .panel {
+                    background-color: %s;
+                }
+                window.singularity-blur .panel,
+                .singularity-blur .panel {
+                    background-color: %s;
+                }
+            """.printf(background, liquid_background, background, liquid_background, panel_glass, panel_blur);
 
             if (material_provider == null) {
                 material_provider = new CssProvider();
@@ -427,6 +456,7 @@ namespace Singularity.Style {
             // theming) can derive their own accent-tinted colours.
             accent_hex = hex_color;
             accent_fg_hex = contrast_fg_for(hex_color);
+            update_material_style();
             refresh_icon_theme();
             // Pre-compute surface tint colors in Vala so GTK CSS never needs to
             // resolve mix() at paint time. Use mode-appropriate base colors.

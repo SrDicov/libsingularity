@@ -48,6 +48,7 @@ namespace Singularity.Shell {
 
             var pill = new Box(Orientation.HORIZONTAL, 12);
             pill.add_css_class("osd-pill");
+            Singularity.Style.BackgroundEffect.track(this, () => { return new Gtk.Widget[] { pill }; });
             pill.valign = Align.START;
             pill.halign = Align.CENTER;
 

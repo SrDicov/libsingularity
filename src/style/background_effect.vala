@@ -43,6 +43,8 @@ namespace Singularity.Style {
     private extern bool set_native_shapes_effect(Gtk.Widget window,
         [CCode (array_length_type = "int")] Gtk.Widget[] shapes, uint32 mode, uint32 strength);
 
+    public delegate Gtk.Widget[] EffectShapes();
+
     public class BackgroundEffect : Object {
 
         private static GLib.Settings? cached_settings;
@@ -109,6 +111,38 @@ namespace Singularity.Style {
             if (!window.get_mapped()) return;
             if (set_native_shapes_effect(window, shapes, (uint32) mode, (uint32) read_strength())) return;
             set_native_surface_effect(window, (uint32) mode, 0, 0, 0, 0, (uint32) read_strength());
+        }
+
+        public static void track(Gtk.Window window, owned EffectShapes shapes) {
+            unowned Gtk.Widget target = window;
+            var settings = Singularity.Core.safe_settings(Singularity.Runtime.desktop_settings_schema);
+            var mode = read(settings);
+            update_classes(target, mode);
+            ulong settings_handler = 0;
+            ulong paint_handler = 0;
+            Gdk.FrameClock? clock = null;
+            if (settings != null && settings.settings_schema.has_key("background-effect")) {
+                settings_handler = settings.changed["background-effect"].connect(() => {
+                    mode = read(settings);
+                    apply_shapes(target, shapes(), mode);
+                });
+            }
+            target.realize.connect(() => {
+                clock = target.get_frame_clock();
+                if (clock != null) {
+                    paint_handler = clock.after_paint.connect(() => apply_shapes(target, shapes(), mode));
+                }
+            });
+            target.unrealize.connect(() => {
+                if (clock != null && paint_handler != 0) clock.disconnect(paint_handler);
+                clock = null;
+                paint_handler = 0;
+            });
+            target.destroy.connect(() => {
+                if (settings != null && settings_handler != 0) settings.disconnect(settings_handler);
+                settings_handler = 0;
+            });
+            target.map.connect_after(() => apply_shapes(target, shapes(), mode));
         }
 
         public static void apply(Gtk.Widget widget, BackgroundEffectMode mode,

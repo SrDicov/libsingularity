@@ -43,6 +43,9 @@ namespace Singularity.Shell {
          */
         public bool card { get; construct; default = false; }
 
+        private GLib.Settings? effect_settings;
+        private bool overlay_full = false;
+
         /**
          * Creates a basic shell dialog with no anchors.
          *
@@ -84,6 +87,20 @@ namespace Singularity.Shell {
                 margin_bottom_value: margin
             );
         }
+        private void update_background_effect() {
+            var mode = Singularity.Style.BackgroundEffect.read(effect_settings);
+            if (overlay_full) {
+                Singularity.Style.BackgroundEffect.apply(this, mode);
+            } else if (card) {
+                Singularity.Style.BackgroundEffect.apply_shapes(this, new Gtk.Widget[] { content_box }, mode);
+            }
+        }
+
+        public override void size_allocate(int width, int height, int baseline) {
+            base.size_allocate(width, height, baseline);
+            update_background_effect();
+        }
+
         construct {
             init_for_window(this);
             set_layer(this, GtkLayerShell.Layer.OVERLAY);
@@ -105,6 +122,7 @@ namespace Singularity.Shell {
             add_css_class("dialog");
 
             bool full = anchor_top && anchor_bottom && anchor_left && anchor_right;
+            overlay_full = full;
             if (full) {
                 // -1 = ignore exclusive zones from dock/panel so we cover the full screen
                 set_exclusive_zone(this, -1);
@@ -131,6 +149,12 @@ namespace Singularity.Shell {
                 }
                 set_child(content_box);
             }
+
+            effect_settings = Singularity.Core.safe_settings(Singularity.Runtime.desktop_settings_schema);
+            if (effect_settings != null && effect_settings.settings_schema.has_key("background-effect")) {
+                effect_settings.changed["background-effect"].connect(update_background_effect);
+            }
+            map.connect_after(update_background_effect);
 
             var key_controller = new EventControllerKey();
             key_controller.key_pressed.connect((keyval, keycode, state) => {
