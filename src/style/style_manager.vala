@@ -434,11 +434,13 @@ namespace Singularity.Style {
                     background-color: %s;
                 }
                 popover.menu.singularity-blur > contents,
-                popover.context-menu.singularity-blur > contents {
+                popover.context-menu.singularity-blur > contents,
+                popover.global-menu-popover.singularity-blur {
                     background-color: %s;
                 }
                 popover.menu.singularity-glass > contents,
-                popover.context-menu.singularity-glass > contents {
+                popover.context-menu.singularity-glass > contents,
+                popover.global-menu-popover.singularity-glass {
                     background-color: %s;
                     border-color: alpha(white, 0.18);
                 }

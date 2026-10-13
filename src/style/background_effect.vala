@@ -156,6 +156,7 @@ namespace Singularity.Style {
             popover.set_data<bool>("singularity-effect-tracked", true);
             unowned Gtk.Popover target = popover;
             track(popover, () => {
+                if (target.has_css_class("global-menu-popover")) return new Gtk.Widget[] { target };
                 if (!target.has_css_class("menu") && !target.has_css_class("context-menu")) {
                     return new Gtk.Widget[] {};
                 }
