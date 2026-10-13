@@ -9,9 +9,9 @@ namespace Singularity.Widgets {
      * A container drawn as glass over the window content behind it, for
      * bars, cards and overlays that float over an app's content.
      *
-     * With SIT the content behind is refracted and the `glass-native` class
-     * is set, so CSS only adds tint and rim light. Without SIT the bin keeps
-     * a translucent CSS fill. The shape is the CSS border box, so
+     * With SIT on a GPU the content behind is refracted and the
+     * `glass-native` class is set, so CSS only adds tint and rim light.
+     * Otherwise the bin keeps a translucent CSS fill. The shape is the CSS border box, so
      * `border-radius` shapes the glass too.
      */
     public class GlassBin : Gtk.Widget {
@@ -52,6 +52,7 @@ namespace Singularity.Widgets {
             add_css_class("glass-bin");
             unowned GlassBin self = this;
             _tuning_handler = Singularity.Style.GlassTuning.get_default().changed.connect(() => self.refresh());
+            realize.connect_after(refresh);
             refresh();
         }
 
@@ -59,7 +60,7 @@ namespace Singularity.Widgets {
             var glass = _material == GlassMaterial.LENS
                 ? Singularity.Style.Glass.lens()
                 : Singularity.Style.Glass.frosted();
-            if (glass.apply(this)) add_css_class("glass-native");
+            if (glass.apply(this) && Singularity.Style.Glass.accelerated(this)) add_css_class("glass-native");
             else remove_css_class("glass-native");
             if (_material == GlassMaterial.LENS) add_css_class("lens");
             else remove_css_class("lens");

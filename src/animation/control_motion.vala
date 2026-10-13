@@ -240,7 +240,7 @@ namespace Singularity.Animation {
         private void reshape() {
             var knob = transform();
             if (knob == null) return;
-            var glass_on = Singularity.Style.Glass.supported && _lens > 0.02;
+            var glass_on = _lens > 0.02 && Singularity.Style.Glass.accelerated(target);
             if (glass_on) target.add_css_class(LENS_CLASS);
             else target.remove_css_class(LENS_CLASS);
             double grow = 1.0 + (LENS_SCALE - 1.0) * _lens;

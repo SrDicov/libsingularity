@@ -188,7 +188,7 @@ namespace Singularity.Animation {
             double opacity = _lift.clamp(0.0, 1.0);
             var glass = _glass.copy();
             glass.opacity = opacity;
-            bool drawn = glass.append(snapshot, shape);
+            bool drawn = Singularity.Style.Glass.accelerated(host) && glass.append(snapshot, shape);
             var fill = tint;
             fill.alpha = (float) (tint.alpha * (drawn ? 0.6 : 1.0) * opacity);
             snapshot.push_rounded_clip(shape);

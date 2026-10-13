@@ -554,8 +554,11 @@ typedef struct {
 typedef gboolean (*NativeWidgetGlass)(GtkWidget *, const NativeGlass *);
 typedef void (*NativeSnapshotGlass)(GtkSnapshot *, const GskRoundedRect *, const NativeGlass *);
 
+typedef gboolean (*NativeGlassAccelerated)(GtkWidget *);
+
 static NativeWidgetGlass native_widget_glass;
 static NativeSnapshotGlass native_snapshot_glass;
+static NativeGlassAccelerated native_glass_accelerated;
 
 static void
 load_native_glass(void)
@@ -568,6 +571,8 @@ load_native_glass(void)
 				(gpointer *)&native_widget_glass);
 			g_module_symbol(module, "sit_snapshot_append_glass",
 				(gpointer *)&native_snapshot_glass);
+			g_module_symbol(module, "sit_widget_get_glass_accelerated",
+				(gpointer *)&native_glass_accelerated);
 			g_module_close(module);
 		}
 		g_once_init_leave(&initialized, 1);
@@ -579,6 +584,15 @@ singularity_glass_supported(void)
 {
 	load_native_glass();
 	return native_widget_glass != NULL && native_snapshot_glass != NULL;
+}
+
+gboolean
+singularity_widget_glass_accelerated(GtkWidget *widget)
+{
+	load_native_glass();
+	if (!native_widget_glass)
+		return FALSE;
+	return native_glass_accelerated ? native_glass_accelerated(widget) : TRUE;
 }
 
 gboolean

@@ -3,6 +3,9 @@ namespace Singularity.Style {
     [CCode (cname = "singularity_glass_supported", cheader_filename = "wayland/surface_effect.h")]
     private extern bool native_glass_supported();
 
+    [CCode (cname = "singularity_widget_glass_accelerated", cheader_filename = "wayland/surface_effect.h")]
+    private extern bool native_glass_accelerated(Gtk.Widget widget);
+
     [CCode (cname = "singularity_widget_set_glass", cheader_filename = "wayland/surface_effect.h")]
     private extern bool set_native_widget_glass(Gtk.Widget widget, bool enabled, float blur,
         float refraction, float bezel, float zoom, float saturation, float opacity);
@@ -72,8 +75,10 @@ namespace Singularity.Style {
      * shape, seen through a lens that blurs, magnifies, saturates and bends
      * it at the rim. Tint and highlights stay in CSS, drawn on top.
      *
-     * It needs SIT. On any other GTK `supported` is false, nothing is
-     * drawn and widgets keep their CSS look.
+     * It needs SIT and a window that renders on a GPU. On any other GTK
+     * `supported` is false; with Cairo or a software driver
+     * {@link accelerated} is false. In both cases nothing is drawn and
+     * widgets keep their CSS look.
      *
      * {@link lens} is clear and magnifying, for knobs and selection
      * indicators that travel over content. {@link frosted} is blurred, for
@@ -100,6 +105,10 @@ namespace Singularity.Style {
                 if (support < 0) support = native_glass_supported() ? 1 : 0;
                 return support == 1;
             }
+        }
+
+        public static bool accelerated(Gtk.Widget widget) {
+            return supported && native_glass_accelerated(widget);
         }
 
         public static Glass lens() {
