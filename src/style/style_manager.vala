@@ -198,8 +198,11 @@ namespace Singularity.Style {
             typeof(Gtk.Button).class_ref();
             uint map_signal = Signal.lookup("map", typeof(Gtk.Widget));
             Signal.add_emission_hook(map_signal, 0, (hint, values) => {
-                var button = values[0].get_object() as Gtk.Button;
+                var object = values[0].get_object();
+                var button = object as Gtk.Button;
                 if (button != null) track_button(button);
+                var popover = object as Gtk.Popover;
+                if (popover != null) Singularity.Style.BackgroundEffect.track_popover(popover);
                 return true;
             });
         }
@@ -399,6 +402,15 @@ namespace Singularity.Style {
                 .singularity-glass .shortcut-cheatsheet {
                     background-color: %s;
                 }
+                popover.menu.singularity-blur > contents,
+                popover.context-menu.singularity-blur > contents {
+                    background-color: %s;
+                }
+                popover.menu.singularity-glass > contents,
+                popover.context-menu.singularity-glass > contents {
+                    background-color: %s;
+                    border-color: alpha(white, 0.18);
+                }
                 window.singularity-glass .panel,
                 .singularity-glass .panel {
                     background-color: %s;
@@ -407,7 +419,7 @@ namespace Singularity.Style {
                 .singularity-blur .panel {
                     background-color: %s;
                 }
-            """.printf(background, liquid_background, background, liquid_background, panel_glass, panel_blur);
+            """.printf(background, liquid_background, background, liquid_background, background, liquid_background, panel_glass, panel_blur);
 
             if (material_provider == null) {
                 material_provider = new CssProvider();

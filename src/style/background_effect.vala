@@ -113,7 +113,7 @@ namespace Singularity.Style {
             set_native_surface_effect(window, (uint32) mode, 0, 0, 0, 0, (uint32) read_strength());
         }
 
-        public static void track(Gtk.Window window, owned EffectShapes shapes) {
+        public static void track(Gtk.Widget window, owned EffectShapes shapes) {
             unowned Gtk.Widget target = window;
             var settings = Singularity.Core.safe_settings(Singularity.Runtime.desktop_settings_schema);
             var mode = read(settings);
@@ -133,6 +133,12 @@ namespace Singularity.Style {
                     paint_handler = clock.after_paint.connect(() => apply_shapes(target, shapes(), mode));
                 }
             });
+            if (target.get_realized()) {
+                clock = target.get_frame_clock();
+                if (clock != null) {
+                    paint_handler = clock.after_paint.connect(() => apply_shapes(target, shapes(), mode));
+                }
+            }
             target.unrealize.connect(() => {
                 if (clock != null && paint_handler != 0) clock.disconnect(paint_handler);
                 clock = null;
@@ -143,6 +149,21 @@ namespace Singularity.Style {
                 settings_handler = 0;
             });
             target.map.connect_after(() => apply_shapes(target, shapes(), mode));
+        }
+
+        internal static void track_popover(Gtk.Popover popover) {
+            if (popover.get_data<bool>("singularity-effect-tracked")) return;
+            popover.set_data<bool>("singularity-effect-tracked", true);
+            unowned Gtk.Popover target = popover;
+            track(popover, () => {
+                if (!target.has_css_class("menu") && !target.has_css_class("context-menu")) {
+                    return new Gtk.Widget[] {};
+                }
+                for (var child = target.get_first_child(); child != null; child = child.get_next_sibling()) {
+                    if (child.get_css_name() == "contents") return new Gtk.Widget[] { child };
+                }
+                return new Gtk.Widget[] {};
+            });
         }
 
         public static void apply(Gtk.Widget widget, BackgroundEffectMode mode,
