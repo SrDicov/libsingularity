@@ -118,7 +118,9 @@ namespace Singularity.Pdf {
             var f = doc.resolve(r);
             if (!f.is_dict()) return;
             string partial = doc.lookup(f, "T").text_value();
-            string name = prefix == "" ? partial : (partial == "" ? prefix : prefix + "." + partial);
+            string name = prefix + "." + partial;
+            if (prefix == "") name = partial;
+            else if (partial == "") name = prefix;
             var kids = doc.lookup(f, "Kids");
             bool has_field_kids = false;
             if (kids.is_array()) {

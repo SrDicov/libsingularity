@@ -51,7 +51,9 @@ namespace Singularity.Charts {
                     bool first = true;
                     for (int i = coeffs.length - 1; i >= 0; i--) {
                         double c = coeffs[i];
-                        string term = i == 0 ? "" : (i == 1 ? "x" : "x^" + i.to_string());
+                        string term = "x^" + i.to_string();
+                        if (i == 0) term = "";
+                        else if (i == 1) term = "x";
                         if (first) {
                             sb.append(" " + num(c) + term);
                             first = false;
