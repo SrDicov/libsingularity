@@ -152,7 +152,7 @@ namespace Singularity.Vector {
                 default:
                     break;
             }
-            if (ok && hit.distance (corner) < 10 * double.max (wa, wb) + 1e-6) {
+            if (ok && hit.distance (corner) < 10 * double.max (wa.abs (), wb.abs ()) + 1e-6) {
                 out_pts += hit;
             } else {
                 out_pts += a1;
