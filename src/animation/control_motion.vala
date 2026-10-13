@@ -27,6 +27,7 @@ namespace Singularity.Animation {
         private double _velocity = 0.0;
         private double _lens = 0.0;
         private double _drag_start = 0.0;
+        private double _press_x = 0.0;
         private bool _pressed = false;
         private bool _dragging = false;
         private bool _traveling = false;
@@ -50,20 +51,10 @@ namespace Singularity.Animation {
             _position = target.active ? 1.0 : 0.0;
             _glass = Singularity.Style.Glass.lens();
             target.notify["active"].connect(on_active);
-            var click = new Gtk.GestureClick();
-            click.propagation_phase = Gtk.PropagationPhase.CAPTURE;
-            click.pressed.connect(() => press(true));
-            click.released.connect(() => press(false));
-            click.stopped.connect(() => press(false));
-            click.cancel.connect(() => press(false));
-            target.add_controller(click);
-            var drag = new Gtk.GestureDrag();
-            drag.propagation_phase = Gtk.PropagationPhase.CAPTURE;
-            drag.drag_begin.connect(() => _drag_start = _position);
-            drag.drag_update.connect(on_drag);
-            drag.drag_end.connect(on_drag_end);
-            drag.cancel.connect(() => on_drag_end(0.0, 0.0));
-            target.add_controller(drag);
+            var events = new Gtk.EventControllerLegacy();
+            events.propagation_phase = Gtk.PropagationPhase.CAPTURE;
+            events.event.connect(on_event);
+            target.add_controller(events);
             unowned SwitchMotion self = this;
             _tuning_handler = Singularity.Style.GlassTuning.get_default().changed.connect(() => {
                 self._glass = Singularity.Style.Glass.lens();
@@ -157,7 +148,35 @@ namespace Singularity.Animation {
             motion().retarget(to);
         }
 
-        private void on_drag(double offset_x, double offset_y) {
+        private bool on_event(Gdk.Event event) {
+            double x = 0.0, y = 0.0;
+            switch (event.get_event_type()) {
+                case Gdk.EventType.BUTTON_PRESS:
+                case Gdk.EventType.TOUCH_BEGIN:
+                    if (_pressed || !event.get_position(out x, out y)) return false;
+                    _press_x = x;
+                    _drag_start = _position;
+                    press(true);
+                    break;
+                case Gdk.EventType.MOTION_NOTIFY:
+                case Gdk.EventType.TOUCH_UPDATE:
+                    if (!_pressed || !event.get_position(out x, out y)) return false;
+                    on_drag(x - _press_x);
+                    break;
+                case Gdk.EventType.BUTTON_RELEASE:
+                case Gdk.EventType.TOUCH_END:
+                case Gdk.EventType.TOUCH_CANCEL:
+                    if (!_pressed) return false;
+                    finish_drag();
+                    press(false);
+                    break;
+                default:
+                    break;
+            }
+            return false;
+        }
+
+        private void on_drag(double offset_x) {
             if (!_dragging && offset_x.abs() < 3.0) return;
             if (transform() == null) return;
             if (!_dragging) {
@@ -166,10 +185,14 @@ namespace Singularity.Animation {
             }
             double raw = _drag_start + offset_x / travel();
             double over = raw < 0.0 ? raw : (raw > 1.0 ? raw - 1.0 : 0.0);
-            motion().track(raw.clamp(0.0, 1.0) + over * 0.3);
+            var spring = motion();
+            spring.track(raw.clamp(0.0, 1.0) + over * 0.3);
+            _position = spring.value;
+            _velocity = spring.velocity;
+            reshape();
         }
 
-        private void on_drag_end(double offset_x, double offset_y) {
+        private void finish_drag() {
             if (!_dragging) return;
             Idle.add(() => {
                 _dragging = false;
