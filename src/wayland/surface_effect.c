@@ -541,3 +541,65 @@ singularity_widget_set_visual_clip(GtkWidget *widget, const GskRoundedRect * cli
 	}
 	return set_visual ? set_visual(widget, clip) : FALSE;
 }
+
+typedef struct {
+	float blur;
+	float refraction;
+	float bezel;
+	float zoom;
+	float saturation;
+	float opacity;
+} NativeGlass;
+
+typedef gboolean (*NativeWidgetGlass)(GtkWidget *, const NativeGlass *);
+typedef void (*NativeSnapshotGlass)(GtkSnapshot *, const GskRoundedRect *, const NativeGlass *);
+
+static NativeWidgetGlass native_widget_glass;
+static NativeSnapshotGlass native_snapshot_glass;
+
+static void
+load_native_glass(void)
+{
+	static gsize initialized;
+	if (g_once_init_enter(&initialized)) {
+		GModule *module = g_module_open(NULL, G_MODULE_BIND_LAZY);
+		if (module) {
+			g_module_symbol(module, "sit_widget_set_glass",
+				(gpointer *)&native_widget_glass);
+			g_module_symbol(module, "sit_snapshot_append_glass",
+				(gpointer *)&native_snapshot_glass);
+			g_module_close(module);
+		}
+		g_once_init_leave(&initialized, 1);
+	}
+}
+
+gboolean
+singularity_glass_supported(void)
+{
+	load_native_glass();
+	return native_widget_glass != NULL && native_snapshot_glass != NULL;
+}
+
+gboolean
+singularity_widget_set_glass(GtkWidget *widget, gboolean enabled, float blur,
+		float refraction, float bezel, float zoom, float saturation, float opacity)
+{
+	NativeGlass glass = { blur, refraction, bezel, zoom, saturation, opacity };
+	load_native_glass();
+	if (!native_widget_glass)
+		return FALSE;
+	return native_widget_glass(widget, enabled ? &glass : NULL);
+}
+
+gboolean
+singularity_snapshot_append_glass(GtkSnapshot *snapshot, const GskRoundedRect *shape,
+		float blur, float refraction, float bezel, float zoom, float saturation, float opacity)
+{
+	NativeGlass glass = { blur, refraction, bezel, zoom, saturation, opacity };
+	load_native_glass();
+	if (!native_snapshot_glass)
+		return FALSE;
+	native_snapshot_glass(snapshot, shape, &glass);
+	return TRUE;
+}

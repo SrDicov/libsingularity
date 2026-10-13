@@ -21,6 +21,7 @@ namespace Singularity.Widgets {
         private Map<string, Button> _buttons = new HashMap<string, Button>();
         private Gee.List<string> _names = new ArrayList<string>();
         private string? _active_name = null;
+        private Singularity.Animation.GlassIndicator _indicator;
 
         public BubbleSwitcher(Stack? stack = null) {
             Object(orientation: Orientation.HORIZONTAL, spacing: 0);
@@ -32,6 +33,15 @@ namespace Singularity.Widgets {
             hexpand = false;
             halign = Align.CENTER;
             valign = Align.CENTER;
+            _indicator = new Singularity.Animation.GlassIndicator(this);
+        }
+
+        public override void snapshot(Gtk.Snapshot snapshot) {
+            base.snapshot(snapshot);
+            var tint = get_color();
+            tint.alpha = 0.12f;
+            _indicator.tint = tint;
+            _indicator.snapshot(snapshot);
         }
 
         public void set_stack(Stack stack) {
@@ -125,6 +135,7 @@ namespace Singularity.Widgets {
                 if (entry.key == wanted) entry.value.add_css_class("current");
                 else entry.value.remove_css_class("current");
             }
+            _indicator.move_to(wanted != null ? _buttons.get(wanted) : null);
             notify_property("active-option");
         }
     }

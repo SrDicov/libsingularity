@@ -1,28 +1,45 @@
 namespace Singularity.Animation {
 
     /**
-     * Spring motion for the knob of a `Gtk.Switch`.
+     * Liquid motion for the knob of a `Gtk.Switch`.
      *
-     * The knob follows the snappy spring when the switch changes, keeps its
-     * velocity when the switch is flipped again halfway, and widens by 10 %
-     * while it is pressed. The track colour follows CSS over SMALL.
+     * Pressing the switch turns the knob into a round glass lens that grows
+     * past the track and magnifies it. The lens follows a drag, stretches
+     * with its speed while it travels and settles back into a solid knob on
+     * a bouncy spring once the switch is released and at rest. Without SIT
+     * the knob keeps its CSS fill and only the motion is played.
      */
     public class SwitchMotion : Object {
 
-        public const double PRESS_WIDEN = 1.1;
+        public const double LENS_SCALE = 1.45;
+        public const double STRETCH = 0.025;
+        public const double MAX_STRETCH = 0.28;
 
         private const string DATA_KEY = "singularity-switch-motion";
+        private const string LENS_CLASS = "glass-lens";
 
         private Gtk.Widget? _slider = null;
         private ChildTransform? _transform = null;
-        private SpringAnimation? _spring = null;
+        private SpringAnimation? _motion = null;
+        private SpringAnimation? _lens_spring = null;
+        private Singularity.Style.Glass _glass;
         private double _position = 0.0;
+        private double _velocity = 0.0;
+        private double _lens = 0.0;
+        private double _drag_start = 0.0;
         private bool _pressed = false;
+        private bool _dragging = false;
+        private bool _traveling = false;
+        private ulong _tuning_handler = 0;
 
         public unowned Gtk.Switch target { get; construct; }
 
         public double position {
             get { return _position; }
+        }
+
+        public double lens {
+            get { return _lens; }
         }
 
         private SwitchMotion(Gtk.Switch target) {
@@ -31,6 +48,7 @@ namespace Singularity.Animation {
 
         construct {
             _position = target.active ? 1.0 : 0.0;
+            _glass = Singularity.Style.Glass.lens();
             target.notify["active"].connect(on_active);
             var click = new Gtk.GestureClick();
             click.propagation_phase = Gtk.PropagationPhase.CAPTURE;
@@ -39,6 +57,22 @@ namespace Singularity.Animation {
             click.stopped.connect(() => press(false));
             click.cancel.connect(() => press(false));
             target.add_controller(click);
+            var drag = new Gtk.GestureDrag();
+            drag.propagation_phase = Gtk.PropagationPhase.CAPTURE;
+            drag.drag_begin.connect(() => _drag_start = _position);
+            drag.drag_update.connect(on_drag);
+            drag.drag_end.connect(on_drag_end);
+            drag.cancel.connect(() => on_drag_end(0.0, 0.0));
+            target.add_controller(drag);
+            unowned SwitchMotion self = this;
+            _tuning_handler = Singularity.Style.GlassTuning.get_default().changed.connect(() => {
+                self._glass = Singularity.Style.Glass.lens();
+                self.reshape();
+            });
+            target.destroy.connect(() => {
+                if (_tuning_handler != 0) Singularity.Style.GlassTuning.get_default().disconnect(_tuning_handler);
+                _tuning_handler = 0;
+            });
         }
 
         public static SwitchMotion attach(Gtk.Switch target) {
@@ -78,61 +112,126 @@ namespace Singularity.Animation {
                 out minimum_baseline, out natural_baseline);
             width = minimum;
             height = target.get_height();
-            x = _position.clamp(-0.2, 1.2) * (target.get_width() - width);
+            x = _position.clamp(-0.1, 1.1) * (target.get_width() - width);
             y = 0.0;
-            _transform.origin_x = _position.clamp(0.0, 1.0);
+            _transform.origin_x = 0.5;
+            _transform.origin_y = 0.5;
+        }
+
+        private double travel() {
+            var knob = slider();
+            if (knob == null) return 1.0;
+            int minimum, natural, minimum_baseline, natural_baseline;
+            knob.measure(Gtk.Orientation.HORIZONTAL, -1, out minimum, out natural,
+                out minimum_baseline, out natural_baseline);
+            return double.max(1.0, target.get_width() - minimum);
+        }
+
+        private SpringAnimation motion() {
+            if (_motion != null) return _motion;
+            _motion = new SpringAnimation(target, _position, _position, Singularity.Motion.Spring.SNAPPY);
+            _motion.set_sink((value) => {
+                _position = value;
+                _velocity = _motion.velocity;
+                reshape();
+            });
+            _motion.done.connect(() => {
+                _velocity = 0.0;
+                _traveling = false;
+                update_lens();
+                reshape();
+            });
+            return _motion;
         }
 
         private void on_active() {
             double to = target.active ? 1.0 : 0.0;
-            if (!target.get_mapped()) {
+            if (!target.get_mapped() || transform() == null) {
                 _position = to;
+                if (_motion != null) _motion.set_current(to);
                 return;
             }
-            var knob = transform();
-            if (knob == null) {
-                _position = to;
-                return;
+            if (_dragging) return;
+            _traveling = true;
+            update_lens();
+            motion().retarget(to);
+        }
+
+        private void on_drag(double offset_x, double offset_y) {
+            if (!_dragging && offset_x.abs() < 3.0) return;
+            if (transform() == null) return;
+            if (!_dragging) {
+                _dragging = true;
+                update_lens();
             }
-            if (_spring != null && _spring.state == AnimationState.PLAYING) {
-                _spring.retarget(to);
-                return;
-            }
-            _spring = new SpringAnimation(target, _position, to, Singularity.Motion.Spring.SNAPPY);
-            var spring = _spring;
-            spring.set_sink((value) => {
-                _position = value;
-                knob.hold = true;
-                target.queue_allocate();
+            double raw = _drag_start + offset_x / travel();
+            double over = raw < 0.0 ? raw : (raw > 1.0 ? raw - 1.0 : 0.0);
+            motion().track(raw.clamp(0.0, 1.0) + over * 0.3);
+        }
+
+        private void on_drag_end(double offset_x, double offset_y) {
+            if (!_dragging) return;
+            Idle.add(() => {
+                _dragging = false;
+                _traveling = true;
+                update_lens();
+                motion().release(target.active ? 1.0 : 0.0);
+                return Source.REMOVE;
             });
-            spring.done.connect(() => {
-                if (_spring != spring) return;
-                _position = to;
-                _spring = null;
-                if (!_pressed) knob.hold = false;
-                target.queue_allocate();
-            });
-            spring.play();
         }
 
         public void press(bool pressed) {
             if (_pressed == pressed) return;
             _pressed = pressed;
+            update_lens();
+        }
+
+        private void update_lens() {
             var knob = transform();
             if (knob == null) return;
-            if (pressed) knob.hold = true;
+            double to = (_pressed || _dragging || _traveling) ? 1.0 : 0.0;
             if (Singularity.Motion.reduced()) {
-                knob.scale_x = 1.0;
-                if (!pressed && _spring == null) knob.hold = false;
+                _lens = 0.0;
+                reshape();
                 return;
             }
-            var widen = Singularity.Motion.tween(knob, "scale-x", pressed ? PRESS_WIDEN : 1.0,
-                Singularity.Motion.Duration.SMALL, Singularity.Motion.Curve.STANDARD, target);
-            if (!pressed) {
-                widen.done.connect(() => {
-                    if (!_pressed && _spring == null) knob.hold = false;
+            if (to > 0.0) knob.hold = true;
+            if (_lens_spring == null) {
+                _lens_spring = new SpringAnimation(target, _lens, to,
+                    to > 0.0 ? Singularity.Motion.Spring.SNAPPY : Singularity.Motion.Spring.BOUNCY);
+                _lens_spring.set_sink((value) => {
+                    _lens = value;
+                    reshape();
+                });
+                _lens_spring.done.connect(() => {
+                    _lens = _lens_spring.value_to;
+                    reshape();
                 });
             }
+            if (_lens_spring.value_to == to && _lens_spring.state == AnimationState.PLAYING) return;
+            _lens_spring.use_spring(to > 0.0 ? Singularity.Motion.Spring.SNAPPY : Singularity.Motion.Spring.BOUNCY);
+            _lens_spring.set_current(_lens);
+            _lens_spring.retarget(to);
+        }
+
+        private void reshape() {
+            var knob = transform();
+            if (knob == null) return;
+            var glass_on = Singularity.Style.Glass.supported && _lens > 0.02;
+            if (glass_on) target.add_css_class(LENS_CLASS);
+            else target.remove_css_class(LENS_CLASS);
+            double grow = 1.0 + (LENS_SCALE - 1.0) * _lens;
+            double stretch = Singularity.Motion.reduced() ? 0.0 : (_velocity.abs() * STRETCH).clamp(0.0, MAX_STRETCH);
+            var glass = _glass.copy();
+            glass.opacity = _lens.clamp(0.0, 1.0);
+            glass.zoom = _glass.zoom / double.max(grow, 0.5);
+            if (glass_on) glass.apply(_slider);
+            else Singularity.Style.Glass.remove(_slider);
+            knob.scale_x = grow * (1.0 + stretch);
+            knob.scale_y = grow * (1.0 - stretch * 0.5);
+            bool idle = _lens.abs() < 0.001 && !_pressed && !_dragging && !_traveling;
+            knob.hold = !idle;
+            target.queue_allocate();
         }
     }
 

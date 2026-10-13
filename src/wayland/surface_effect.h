@@ -26,4 +26,10 @@ gboolean singularity_widget_set_visual_transform(GtkWidget *widget, GskTransform
 gboolean singularity_widget_set_visual_opacity(GtkWidget *widget, double opacity);
 gboolean singularity_widget_set_visual_clip(GtkWidget *widget, const GskRoundedRect *clip);
 
+gboolean singularity_glass_supported(void);
+gboolean singularity_widget_set_glass(GtkWidget *widget, gboolean enabled, float blur,
+		float refraction, float bezel, float zoom, float saturation, float opacity);
+gboolean singularity_snapshot_append_glass(GtkSnapshot *snapshot, const GskRoundedRect *shape,
+		float blur, float refraction, float bezel, float zoom, float saturation, float opacity);
+
 #endif

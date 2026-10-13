@@ -25,6 +25,7 @@ namespace Singularity.Widgets {
         private Map<string, Button> _buttons = new HashMap<string, Button>();
         private Gee.List<string> _names = new ArrayList<string>();
         private string? _active_name = null;
+        private Singularity.Animation.GlassIndicator _indicator;
 
         public SegmentedControl(Stack? stack = null) {
             Object(orientation: Orientation.HORIZONTAL, spacing: 0);
@@ -41,6 +42,16 @@ namespace Singularity.Widgets {
             _inner_box = new Box(Orientation.HORIZONTAL, 0);
             _inner_box.add_css_class("segmented-inner");
             append(_inner_box);
+            _indicator = new Singularity.Animation.GlassIndicator(this);
+        }
+
+        public override void snapshot(Gtk.Snapshot snapshot) {
+            base.snapshot(snapshot);
+            Gdk.RGBA tint = {};
+            if (!tint.parse(Singularity.Style.StyleManager.get_default().accent_hex)) tint = get_color();
+            tint.alpha = 0.45f;
+            _indicator.tint = tint;
+            _indicator.snapshot(snapshot);
         }
 
         public void set_stack(Stack stack) {
@@ -144,6 +155,7 @@ namespace Singularity.Widgets {
                 if (name == wanted) btn.add_css_class("active");
                 else                btn.remove_css_class("active");
             }
+            _indicator.move_to(_buttons.get(wanted));
         }
     }
 }
