@@ -534,6 +534,10 @@ namespace Singularity {
             audio = AudioManager.get_default();
             audio.devices_changed.connect(() => on_audio_changed());
             audio.state_changed.connect(() => on_audio_changed());
+            audio.set_sink_redirect((name) => {
+                if (running_device == "" || !is_virtual(name)) return null;
+                return running_device;
+            });
             init.begin();
         }
 

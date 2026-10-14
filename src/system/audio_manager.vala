@@ -2,6 +2,8 @@ namespace Singularity {
 
     using PulseAudio;
 
+    public delegate string? AudioSinkRedirect(string sink_name);
+
     public class AudioManager : Object {
         public struct AudioDevice {
             public uint32 index;
@@ -112,6 +114,8 @@ namespace Singularity {
         private int _refresh_pending = 0;
         private bool _refresh_again = false;
 
+        private AudioSinkRedirect? sink_redirect = null;
+
         private const string MONO_SINK = "singularity_mono";
         private bool mono_enabled = false;
         private uint32 mono_module = PulseAudio.INVALID_INDEX;
@@ -212,6 +216,10 @@ namespace Singularity {
                         default_sink = mono_master;
                     } else if (mono_enabled && default_sink != "" && !mono_pending) {
                         apply_mono(default_sink);
+                    }
+                    if (sink_redirect != null && default_sink != "") {
+                        string? real = sink_redirect(default_sink);
+                        if (real != null && real != "") default_sink = real;
                     }
                     get_sink_info(default_sink);
                     get_source_info(info.default_source_name);
@@ -476,6 +484,11 @@ namespace Singularity {
             for (unowned List<SinkInput?> l = sink_inputs; l != null; l = l.next) {
                 if (l.data != null && stream_matches(l.data, pid, hints)) set_app_mute(l.data.index, muted);
             }
+        }
+
+        public void set_sink_redirect(owned AudioSinkRedirect? redirect) {
+            sink_redirect = (owned) redirect;
+            queue_refresh();
         }
 
         public void set_default_sink(string name) {
