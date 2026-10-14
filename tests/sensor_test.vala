@@ -112,13 +112,6 @@ private void reset_fixture() {
     }
 }
 
-/**
- * A monitor configured the way the NCZ shell configures it on Sky1 -- with the
- * ACPI-zone hints set. The dedup rule only has anything to compare when those
- * zones are classified as CPU/GPU rather than falling through to SYSTEM, so a
- * test of that rule must model the shipping configuration, not the bare
- * default.
- */
 private Singularity.SensorMonitor monitor_for_sky1_fixture() {
     var m = new Singularity.SensorMonitor();
     m.sysfs_root = fixture_root;
