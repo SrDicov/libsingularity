@@ -28,6 +28,10 @@ namespace Singularity {
             return plugin in plugins;
         }
 
+        public bool is_computer {
+            get { return device_type != "phone" && device_type != "tablet"; }
+        }
+
         public string full_icon_name {
             owned get { return device_type == "phone" || device_type == "tablet" ? "phone" : "computer"; }
         }
