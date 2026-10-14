@@ -14,6 +14,7 @@ namespace Singularity {
         private const double MEM_WARNING_PCT = 0.85;
         private const double MEM_CRITICAL_PCT = 0.95;
         private const double CPU_SPIKE_PCT = 90.0;
+        private const int CPU_SPIKE_SAMPLES = 12;
 
         private int64 _prev_idle = 0;
         private int64 _prev_total = 0;
@@ -73,52 +74,110 @@ namespace Singularity {
         }
 
         private void check_cpu() {
-            int64 idle = 0, total = 0;
             var f = FileStream.open("/proc/stat", "r");
             if (f == null) return;
             string? line = f.read_line();
             if (line == null || !line.has_prefix("cpu ")) return;
-            // The aggregate "cpu" line is padded with TWO spaces, so a plain
-            // split(" ") yields an empty token that shifts every field by
-            // one (idle ends up holding `system`, wildly inflating the
-            // computed load). Collect non-empty numeric tokens instead, and
-            // sum ALL of them for the true total (idle = idle + iowait).
             int64[] vals = {};
             foreach (var p in line.split(" ")) {
                 if (p == "" || p == "cpu") continue;
                 vals += int64.parse(p);
             }
-            // Fields: user nice system idle iowait irq softirq steal ...
             if (vals.length < 5) return;
-            idle = vals[3] + vals[4]; // idle + iowait counts as not-busy
-            total = 0;
-            foreach (var v in vals) total += v;
+            int64 busy = vals[0] + vals[1] + vals[2];
+            for (int i = 5; i < vals.length && i < 8; i++) busy += vals[i];
+            int64 idle = vals[3];
             if (_prev_total == 0) {
                 _prev_idle = idle;
-                _prev_total = total;
+                _prev_total = busy;
                 return;
             }
+            int64 d_busy = busy - _prev_total;
             int64 d_idle = idle - _prev_idle;
-            int64 d_total = total - _prev_total;
             _prev_idle = idle;
-            _prev_total = total;
-            if (d_total == 0) return;
-            double cpu_pct = ((double)(d_total - d_idle) / (double)d_total) * 100.0;
-            cpu_pct = cpu_pct.clamp(0.0, 100.0);
+            _prev_total = busy;
+            if (d_busy < 0 || d_idle < 0 || d_busy + d_idle <= 0) {
+                _cpu_spike_streak = 0;
+                return;
+            }
+            double cpu_pct = ((double) d_busy / (double) (d_busy + d_idle)) * 100.0;
 
-            // Require the spike to persist across two consecutive samples
-            // (~10s) before alerting - a single 100% blip from a build or
-            // app launch shouldn't page the user.
             if (cpu_pct >= CPU_SPIKE_PCT) _cpu_spike_streak++;
             else _cpu_spike_streak = 0;
 
-            if (_cpu_spike_streak >= 2 && !_cpu_alert_active) {
+            if (_cpu_spike_streak >= CPU_SPIKE_SAMPLES && !_cpu_alert_active) {
                 _cpu_alert_active = true;
-                send_alert("High CPU Usage",
-                    "CPU at %.0f%%. This may indicate a runaway process.".printf(cpu_pct),
-                    "dialog-information");
                 start_cpu_cooldown();
+                var before = process_times();
+                Timeout.add_seconds(2, () => {
+                    if (_cpu_spike_streak < CPU_SPIKE_SAMPLES) {
+                        _cpu_alert_active = false;
+                        return Source.REMOVE;
+                    }
+                    string name;
+                    double share = top_process(before, process_times(), 2.0, out name);
+                    if (name != "") {
+                        send_alert(_("High CPU Usage"),
+                            _("%s has been using %.0f%% of a processor core for over a minute.").printf(name, share),
+                            "dialog-information");
+                    } else {
+                        send_alert(_("High CPU Usage"),
+                            _("The processor has been busy for over a minute."),
+                            "dialog-information");
+                    }
+                    return Source.REMOVE;
+                });
             }
+        }
+
+        private static HashTable<string, int64?> process_times() {
+            var times = new HashTable<string, int64?>(str_hash, str_equal);
+            Dir dir;
+            try {
+                dir = Dir.open("/proc");
+            } catch (FileError e) {
+                return times;
+            }
+            string? entry;
+            while ((entry = dir.read_name()) != null) {
+                if (entry[0] < '0' || entry[0] > '9') continue;
+                string stat;
+                try {
+                    if (!FileUtils.get_contents("/proc/%s/stat".printf(entry), out stat)) continue;
+                } catch (FileError e) {
+                    continue;
+                }
+                int open = stat.index_of_char('(');
+                int close = stat.last_index_of_char(')');
+                if (open < 0 || close < open) continue;
+                string[] fields = stat.substring(close + 2).split(" ");
+                if (fields.length < 13) continue;
+                string name = stat.substring(open + 1, close - open - 1);
+                times["%s\t%s".printf(entry, name)] = int64.parse(fields[11]) + int64.parse(fields[12]);
+            }
+            return times;
+        }
+
+        private static double top_process(HashTable<string, int64?> before, HashTable<string, int64?> after,
+                                          double seconds, out string name) {
+            string best_key = "";
+            int64 best = 0;
+            var iter = HashTableIter<string, int64?>(after);
+            unowned string key;
+            int64? value;
+            while (iter.next(out key, out value)) {
+                int64? old = before[key];
+                if (old == null || value == null) continue;
+                int64 delta = value - old;
+                if (delta > best) {
+                    best = delta;
+                    best_key = key;
+                }
+            }
+            name = best_key != "" ? best_key.split("\t", 2)[1] : "";
+            long ticks = Posix.sysconf(Posix._SC_CLK_TCK);
+            if (ticks <= 0) ticks = 100;
+            return best * 100.0 / (ticks * seconds);
         }
         private int _cpu_spike_streak = 0;
 
