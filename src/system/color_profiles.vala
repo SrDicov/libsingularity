@@ -115,11 +115,11 @@ namespace Singularity {
                 if (data[entry] != 'd' || data[entry + 1] != 'e' || data[entry + 2] != 's' || data[entry + 3] != 'c') continue;
                 uint32 offset = read_be32(data, entry + 4);
                 uint32 size = read_be32(data, entry + 8);
-                if (offset + size > data.length || size < 12) return fallback;
+                if ((uint64) offset + size > data.length || size < 12) return fallback;
                 string? title = null;
                 if (data[offset] == 'd' && data[offset + 1] == 'e' && data[offset + 2] == 's' && data[offset + 3] == 'c') {
                     uint32 len = read_be32(data, offset + 8);
-                    if (len > 1 && offset + 12 + len <= data.length) {
+                    if (len > 1 && (uint64) offset + 12 + len <= data.length) {
                         var sb = new StringBuilder();
                         for (uint32 k = 0; k < len - 1; k++) sb.append_c((char) data[offset + 12 + k]);
                         title = sb.str;
@@ -129,7 +129,7 @@ namespace Singularity {
                     if (records > 0 && offset + 28 <= data.length) {
                         uint32 len = read_be32(data, offset + 20);
                         uint32 start = read_be32(data, offset + 24);
-                        if (offset + start + len <= data.length) {
+                        if ((uint64) offset + start + len <= data.length) {
                             var sb = new StringBuilder();
                             for (uint32 k = 0; k + 1 < len; k += 2) {
                                 unichar c = (data[offset + start + k] << 8) | data[offset + start + k + 1];

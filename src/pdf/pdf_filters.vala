@@ -1,5 +1,7 @@
 namespace Singularity.Pdf.Filters {
 
+    private const uint MAX_DECODED = 1 << 28;
+
     public uint8[] inflate(uint8[] input) throws Error {
         try {
             return run_inflate(input, ZlibCompressorFormat.ZLIB);
@@ -26,6 +28,7 @@ namespace Singularity.Pdf.Filters {
             }
             in_pos += read;
             if (written > 0) output.append(buf[0 : written]);
+            if (output.len > MAX_DECODED) throw new PdfError.UNSUPPORTED("decoded stream is too large");
             if (r == ConverterResult.FINISHED) break;
             if (read == 0 && written == 0) break;
         }
@@ -54,9 +57,9 @@ namespace Singularity.Pdf.Filters {
         int colors = parms.get("Colors") != null ? parms.get("Colors").as_int(1) : 1;
         int bpc = parms.get("BitsPerComponent") != null ? parms.get("BitsPerComponent").as_int(8) : 8;
         int columns = parms.get("Columns") != null ? parms.get("Columns").as_int(1) : 1;
+        if (colors < 1 || colors > 32 || bpc < 1 || bpc > 16 || columns < 1 || columns > (1 << 24)) return data;
         int bpp = int.max(1, (colors * bpc + 7) / 8);
-        int row = (colors * bpc * columns + 7) / 8;
-        if (row <= 0) return data;
+        int row = (int) (((int64) colors * bpc * columns + 7) / 8);
         var output = new ByteArray();
         if (predictor == 2) {
             if (bpc != 8) return data;
@@ -194,7 +197,7 @@ namespace Singularity.Pdf.Filters {
             Bytes entry;
             if (code < table.size) {
                 entry = table[code];
-                if (prev != null) {
+                if (prev != null && table.size < 4096) {
                     var ne = new ByteArray();
                     ne.append(prev.get_data());
                     ne.append({ entry.get_data()[0] });
@@ -205,11 +208,12 @@ namespace Singularity.Pdf.Filters {
                 ne.append(prev.get_data());
                 ne.append({ prev.get_data()[0] });
                 entry = ByteArray.free_to_bytes(ne);
-                table.add(entry);
+                if (table.size < 4096) table.add(entry);
             } else {
                 break;
             }
             output.append(entry.get_data());
+            if (output.len > MAX_DECODED) break;
             prev = entry;
             int size = table.size + early;
             if (size >= 4096) code_len = 12;

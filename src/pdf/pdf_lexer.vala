@@ -4,6 +4,8 @@ namespace Singularity.Pdf {
         public unowned uint8[] data;
         public int pos;
         public int end;
+        private int nesting = 0;
+        private const int MAX_NESTING = 256;
 
         public Lexer(uint8[] data, int pos = 0, int end = -1) {
             this.data = data;
@@ -109,6 +111,16 @@ namespace Singularity.Pdf {
         }
 
         public Obj parse() throws PdfError {
+            if (nesting >= MAX_NESTING) throw new PdfError.MALFORMED("objects are nested too deeply");
+            nesting++;
+            try {
+                return parse_value();
+            } finally {
+                nesting--;
+            }
+        }
+
+        private Obj parse_value() throws PdfError {
             skip_space();
             if (pos >= end) throw new PdfError.MALFORMED("unexpected end of data");
             uint8 c = data[pos];

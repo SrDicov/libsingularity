@@ -17,6 +17,8 @@ namespace Singularity.Remote {
         private const uint32 CLIP_NOTIFY = 1 << 27;
         private const uint32 CLIP_PROVIDE = 1 << 28;
         private const uint32 CLIP_MAX = 1 << 20;
+        private const size_t MAX_MESSAGE = 64 << 20;
+        private const int MAX_CURSOR = 512;
 
         private SocketConnection? socket;
         private IOStream? stream;
@@ -128,6 +130,7 @@ namespace Singularity.Remote {
         }
 
         private async uint8[] take (size_t n) throws Error {
+            if (n > MAX_MESSAGE) throw new SessionError.UNSUPPORTED (_("The remote computer sent a message this app does not understand."));
             var buf = new uint8[n];
             if (n == 0) return buf;
             yield need (n);
@@ -335,8 +338,8 @@ namespace Singularity.Remote {
             yield take (16);
             desktop_name = yield text (yield u32 ());
             fb.resize (w, h);
-            width = w;
-            height = h;
+            width = fb.width;
+            height = fb.height;
 
             var pf = new ByteArray ();
             pf.append ({ 0, 0, 0, 0 });
@@ -472,8 +475,8 @@ namespace Singularity.Remote {
 
         private void resize_to (int w, int h) {
             fb.resize (w, h);
-            width = w;
-            height = h;
+            width = fb.width;
+            height = fb.height;
         }
 
         private bool fits (int x, int y, int w, int h) {
@@ -481,11 +484,12 @@ namespace Singularity.Remote {
         }
 
         private async void raw (int x, int y, int w, int h) throws Error {
-            var px = yield take ((size_t) w * h * 4);
-            if (!fits (x, y, w, h)) return;
+            bool ok = fits (x, y, w, h);
             for (int row = 0; row < h; row++) {
-                Memory.copy (&fb.data[(y + row) * fb.stride + x * 4], &px[row * w * 4], w * 4);
+                var px = yield take ((size_t) w * 4);
+                if (ok) Memory.copy (&fb.data[(y + row) * fb.stride + x * 4], px, w * 4);
             }
+            if (!ok) return;
             for (int row = 0; row < h; row++) {
                 int o = (y + row) * fb.stride + x * 4 + 3;
                 for (int col = 0; col < w; col++) {
@@ -554,7 +558,7 @@ namespace Singularity.Remote {
             if (ok) fb.add_damage (x, y, w, h);
         }
 
-        private uint8[] inflate (uint8[] data) throws Error {
+        private uint8[] inflate (uint8[] data, size_t limit) throws Error {
             var result = new ByteArray.sized ((uint) data.length * 4);
             var buf = new uint8[1 << 16];
             size_t pos = 0;
@@ -563,6 +567,7 @@ namespace Singularity.Remote {
                 var res = zlib.convert (data[pos:data.length], buf, ConverterFlags.NONE, out read, out written);
                 pos += read;
                 if (written > 0) result.append (buf[0:written]);
+                if (result.len > limit) throw new SessionError.FAILED (_("The picture data from the remote computer is damaged."));
                 if (res == ConverterResult.FINISHED) break;
                 if (pos >= data.length && written < buf.length) break;
             }
@@ -572,7 +577,7 @@ namespace Singularity.Remote {
         private async void zrle (int x, int y, int w, int h) throws Error {
             uint32 len = yield u32 ();
             var packed = yield take (len);
-            var z = inflate (packed);
+            var z = inflate (packed, (size_t) w * h * 4 + ((size_t) (w / 64 + 1) * (h / 64 + 1)) * 400 + 4096);
             if (!fits (x, y, w, h)) return;
             int p = 0;
             uint8 pal[128 * 3];
@@ -679,8 +684,12 @@ namespace Singularity.Remote {
         }
 
         private async void cursor (int hx, int hy, int w, int h) throws Error {
-            var px = yield take ((size_t) w * h * 4);
             int mask_stride = (w + 7) / 8;
+            if (w > MAX_CURSOR || h > MAX_CURSOR) {
+                yield skip ((size_t) w * h * 4 + (size_t) mask_stride * h);
+                return;
+            }
+            var px = yield take ((size_t) w * h * 4);
             var mask = yield take ((size_t) mask_stride * h);
             if (w == 0 || h == 0) {
                 cursor_changed (new Gdk.Cursor.from_name ("none", null));
@@ -757,14 +766,17 @@ namespace Singularity.Remote {
             return result;
         }
 
-        private static uint8[] zlib_unpack (uint8[] data) throws Error {
-            var src = new MemoryInputStream.from_data (data);
-            var conv = new ConverterInputStream (src, new ZlibDecompressor (ZlibCompressorFormat.ZLIB));
-            var sink = new MemoryOutputStream.resizable ();
-            sink.splice (conv, OutputStreamSpliceFlags.CLOSE_SOURCE | OutputStreamSpliceFlags.CLOSE_TARGET);
-            var result = sink.steal_data ();
-            result.length = (int) sink.get_data_size ();
-            return result;
+        private static uint8[] zlib_unpack (uint8[] data, size_t limit) throws Error {
+            var conv = new ConverterInputStream (new MemoryInputStream.from_data (data), new ZlibDecompressor (ZlibCompressorFormat.ZLIB));
+            var out = new ByteArray ();
+            var buf = new uint8[65536];
+            while (true) {
+                ssize_t n = conv.read (buf);
+                if (n <= 0) break;
+                if (out.len + n > limit) throw new SessionError.FAILED (_("The remote computer sent a message this app does not understand."));
+                out.append (buf[0:n]);
+            }
+            return out.steal ();
         }
 
         public static uint8[] pack_clipboard_text (string text) throws Error {
@@ -777,7 +789,7 @@ namespace Singularity.Remote {
         }
 
         public static string? unpack_clipboard_text (uint8[] packed) throws Error {
-            var raw = zlib_unpack (packed);
+            var raw = zlib_unpack (packed, CLIP_MAX + 8);
             if (raw.length < 4) return null;
             uint32 n = read32 (raw, 0);
             if (n > raw.length - 4) return null;

@@ -15,9 +15,11 @@ namespace Singularity.Remote {
         private Gdk.Texture? last;
         private Cairo.Region damage = new Cairo.Region ();
 
+        public const int MAX_SIDE = 16384;
+
         public void resize (int w, int h) {
-            width = int.max (w, 1);
-            height = int.max (h, 1);
+            width = w.clamp (1, MAX_SIDE);
+            height = h.clamp (1, MAX_SIDE);
             stride = width * 4;
             data = new uint8[stride * height];
             last = null;

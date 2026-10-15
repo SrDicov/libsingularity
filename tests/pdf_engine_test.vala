@@ -41,6 +41,28 @@ void check(bool condition, string what) {
     print("ok %s\n", what);
 }
 
+void test_hostile() {
+    var deep = new StringBuilder();
+    for (int i = 0; i < 100000; i++) deep.append_c('[');
+    bool refused = false;
+    try {
+        new Lexer(deep.str.data).parse();
+    } catch (PdfError e) {
+        refused = true;
+    }
+    check(refused, "deeply nested arrays are refused");
+    var lzw = new uint8[60000];
+    for (int i = 0; i < lzw.length; i++) lzw[i] = (uint8) (i * 7 + 3);
+    var out_lzw = Filters.lzw(lzw);
+    check(out_lzw.length < (1 << 29), "lzw output stays bounded");
+    var parms = Obj.dictionary();
+    parms.set("Predictor", Obj.integer(12));
+    parms.set("Columns", Obj.integer(int.MAX));
+    parms.set("Colors", Obj.integer(1000));
+    var raw = new uint8[64];
+    check(Filters.unpredict(raw, parms).length == raw.length, "absurd predictor rows are ignored");
+}
+
 void test_crypto() {
     uint8[] key = { 0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0a, 0x0b, 0x0c, 0x0d, 0x0e, 0x0f };
     uint8[] block = { 0x00, 0x11, 0x22, 0x33, 0x44, 0x55, 0x66, 0x77, 0x88, 0x99, 0xaa, 0xbb, 0xcc, 0xdd, 0xee, 0xff };
@@ -251,6 +273,7 @@ void test_script() {
 int main(string[] args) {
     tmpdir = DirUtils.make_tmp("pdf-engine-XXXXXX");
     test_crypto();
+    test_hostile();
     test_script();
     try {
         string a = sample("a.pdf", 3);

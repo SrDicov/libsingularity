@@ -58,5 +58,68 @@ void main (string[] args) {
         for (int i = 0; i < 8; i++) assert (out_block[i] == expected[i]);
     });
 
+    Test.add_func ("/remote/hostile-server", () => {
+        var listener = new SocketListener ();
+        uint16 port = 0;
+        try {
+            port = listener.add_any_inet_port (null);
+        } catch (Error e) {
+            assert_not_reached ();
+        }
+        var server = new Thread<bool> ("hostile-vnc", () => {
+            try {
+                var conn = listener.accept (null, null);
+                var o = conn.output_stream;
+                var i = conn.input_stream;
+                var buf = new uint8[64];
+                size_t n;
+                o.write_all ("RFB 003.008\n".data, out n);
+                i.read_all (buf[0:12], out n);
+                o.write_all ({ 1, 1 }, out n);
+                i.read_all (buf[0:1], out n);
+                o.write_all ({ 0, 0, 0, 0 }, out n);
+                i.read_all (buf[0:1], out n);
+                var init = new ByteArray ();
+                init.append ({ 0xff, 0xff, 0, 64 });
+                init.append (new uint8[16]);
+                init.append ({ 0, 0, 0, 0 });
+                o.write_all (init.data, out n);
+                var update = new ByteArray ();
+                update.append ({ 0, 0, 0, 2 });
+                update.append ({ 0xea, 0x60, 0, 0, 0, 100, 0, 2, 0, 0, 0, 0 });
+                update.append (new uint8[100 * 2 * 4]);
+                update.append ({ 0, 0, 0, 0, 0, 2, 0, 2, 0, 0, 0, 0 });
+                update.append (new uint8[2 * 2 * 4]);
+                update.append ({ 3, 0, 0, 0, 0x80, 0, 0, 0 });
+                o.write_all (update.data, out n);
+                o.flush ();
+                Thread.usleep (500000);
+                conn.close ();
+            } catch (Error e) {
+            }
+            return true;
+        });
+        var loop = new MainLoop ();
+        var session = new VncSession ("127.0.0.1", port);
+        Error? closed_with = null;
+        bool closed = false;
+        session.closed.connect ((e) => {
+            closed = true;
+            closed_with = e;
+            loop.quit ();
+        });
+        Timeout.add_seconds (10, () => {
+            loop.quit ();
+            return Source.REMOVE;
+        });
+        session.start ();
+        loop.run ();
+        server.join ();
+        assert (closed);
+        assert (closed_with != null);
+        assert (session.width == Framebuffer.MAX_SIDE);
+        assert (session.height == 64);
+    });
+
     Test.run ();
 }
