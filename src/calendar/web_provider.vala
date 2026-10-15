@@ -188,7 +188,7 @@ namespace Singularity.Calendar {
             var msg = new Soup.Message("GET", url);
             if (msg == null) throw new IOError.INVALID_ARGUMENT(_("The address is not valid"));
             msg.request_headers.append("Accept", "text/calendar, */*");
-            var bytes = yield session.send_and_read_async(msg, Priority.DEFAULT, null);
+            var bytes = yield HttpBody.read(session, msg, 32 * 1024 * 1024);
             if (msg.status_code == 401 || msg.status_code == 403) throw new IOError.PERMISSION_DENIED(_("The calendar is private or the link has expired"));
             if (msg.status_code == 404) throw new IOError.NOT_FOUND(_("The calendar was not found at this address"));
             if (msg.status_code < 200 || msg.status_code >= 300) throw new IOError.FAILED(_("The server answered with error %u").printf(msg.status_code));

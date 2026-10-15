@@ -46,7 +46,7 @@ namespace Singularity.MediaSources {
             if (body != null) msg.set_request_body_from_bytes(content_type ?? "application/octet-stream", body);
             Bytes data;
             try {
-                data = yield session.send_and_read_async(msg, Priority.DEFAULT, cancellable);
+                data = yield HttpBody.read(session, msg, 64 * 1024 * 1024, Priority.DEFAULT, cancellable);
             } catch (IOError.CANCELLED e) {
                 throw e;
             } catch (Error e) {

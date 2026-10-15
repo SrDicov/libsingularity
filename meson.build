@@ -310,6 +310,7 @@ libsingularity_sources = files(
   'src/ui/pages/browser_pill.vala',
   'src/core/terminal_themes.vala',
   'src/util/color_util.vala',
+  'src/util/http_body.vala',
   'src/util/tiling_layout.vala',
   'src/util/tile_tree.vala',
   'src/util/grid_layout.vala',
@@ -843,6 +844,7 @@ calendar_test = executable(
     'src/calendar/ics.vala',
     'src/calendar/local_provider.vala',
     'src/calendar/web_provider.vala',
+    'src/util/http_body.vala',
   ),
   dependencies: [gee_dep, json_dep, soup_dep, dependency('gio-2.0')],
 )
@@ -1003,6 +1005,13 @@ remote_test = executable(
   dependencies: [libsingularity_dep],
 )
 test('remote', remote_test)
+
+http_body_test = executable(
+  'http-body-test',
+  files('tests/http_body_test.vala'),
+  dependencies: [libsingularity_dep, soup_dep],
+)
+test('http-body', http_body_test)
 
 mirror_lock_test = executable(
   'mirror-lock-test',

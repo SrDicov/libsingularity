@@ -3,6 +3,7 @@ using GLib;
 namespace Singularity {
 
     public class NowPlayingCache : Object {
+        private const int MAX_ART_BYTES = 16 * 1024 * 1024;
         private static NowPlayingCache? _instance = null;
         public static NowPlayingCache get_default() {
             if (_instance == null) _instance = new NowPlayingCache();
@@ -168,9 +169,17 @@ namespace Singularity {
             if (_soup == null) _soup = new Soup.Session();
             try {
                 var msg = new Soup.Message("GET", url);
-                var bytes = yield _soup.send_and_read_async(msg, Priority.DEFAULT, null);
-                if (msg.status_code != 200 || bytes == null) return;
-                FileUtils.set_data(_cache_path, bytes.get_data());
+                var stream = yield _soup.send_async(msg, Priority.DEFAULT, null);
+                var body = new ByteArray();
+                var chunk = new uint8[65536];
+                ssize_t n;
+                while ((n = yield stream.read_async(chunk, Priority.DEFAULT, null)) > 0) {
+                    if (body.len + n > MAX_ART_BYTES) break;
+                    body.append(chunk[0:(int) n]);
+                }
+                yield stream.close_async(Priority.DEFAULT, null);
+                if (msg.status_code != 200 || body.len == 0 || n > 0) return;
+                FileUtils.set_data(_cache_path, body.data);
             } catch (Error e) { }
         }
 
