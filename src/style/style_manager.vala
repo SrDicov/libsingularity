@@ -876,6 +876,73 @@ namespace Singularity.Style {
          * @return Hex colour string, e.g. `"#1a2b3c"`.
          */
         public string extract_primary_color(string path) {
+            string? key = primary_color_key(path);
+            if (key != null) {
+                string? cached = primary_colors.lookup(key);
+                if (cached != null) return cached;
+                cached = read_primary_color(key);
+                if (cached != null) {
+                    primary_colors.insert(key, cached);
+                    return cached;
+                }
+            }
+            string hex = compute_primary_color(path);
+            if (key != null) {
+                primary_colors.insert(key, hex);
+                write_primary_color(key, hex);
+            }
+            return hex;
+        }
+
+        private HashTable<string, string> primary_colors = new HashTable<string, string>(str_hash, str_equal);
+
+        private string? primary_color_key(string path) {
+            try {
+                var info = File.new_for_path(path).query_info(
+                    FileAttribute.TIME_MODIFIED + "," + FileAttribute.STANDARD_SIZE,
+                    FileQueryInfoFlags.NONE);
+                return "%s|%lld|%lld".printf(path, info.get_modification_date_time().to_unix(), info.get_size());
+            } catch (GLib.Error e) {
+                return null;
+            }
+        }
+
+        private string primary_colors_path() {
+            return Path.build_filename(Environment.get_user_cache_dir(), "singularity", "accent-colors");
+        }
+
+        private string? read_primary_color(string key) {
+            var kf = new KeyFile();
+            try {
+                kf.load_from_file(primary_colors_path(), KeyFileFlags.NONE);
+                string hex = kf.get_string("colors", Checksum.compute_for_string(ChecksumType.SHA256, key));
+                if (hex.has_prefix("#") && hex.length == 7) return hex;
+            } catch (GLib.Error e) {
+            }
+            return null;
+        }
+
+        private void write_primary_color(string key, string hex) {
+            var kf = new KeyFile();
+            string file = primary_colors_path();
+            try {
+                kf.load_from_file(file, KeyFileFlags.NONE);
+            } catch (GLib.Error e) {
+            }
+            try {
+                string[] ids = kf.has_group("colors") ? kf.get_keys("colors") : new string[0];
+                if (ids.length >= 32) kf.remove_group("colors");
+            } catch (GLib.Error e) {
+            }
+            kf.set_string("colors", Checksum.compute_for_string(ChecksumType.SHA256, key), hex);
+            try {
+                DirUtils.create_with_parents(Path.get_dirname(file), 0700);
+                kf.save_to_file(file);
+            } catch (GLib.Error e) {
+            }
+        }
+
+        private string compute_primary_color(string path) {
             try {
                 // Sample at 32×32: enough to find dominant colors without being slow.
                 var pixbuf = new Gdk.Pixbuf.from_file_at_scale(path, 32, 32, false);
