@@ -569,6 +569,7 @@ if get_option('system')
 
   install_data(
     'singularity-system-1.0.deps',
+    'src/vapi/upower-glib.vapi',
     install_dir: get_option('datadir') / 'vala' / 'vapi',
   )
 
