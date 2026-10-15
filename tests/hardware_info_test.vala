@@ -62,6 +62,33 @@ private void test_hybrid_graphics() {
     );
 }
 
+private void test_virtual_gpu() {
+    reset_fixture();
+    write_vendor("card0", "0x1af4\n");
+    assert(Singularity.HardwareInfo.graphics_from_drm(fixture_root) == "VirtIO GPU");
+}
+
+private void write_block(string name, string size, string removable) {
+    string dev = Path.build_filename(fixture_root, name);
+    assert(DirUtils.create_with_parents(dev, 0755) == 0);
+    try {
+        FileUtils.set_contents(Path.build_filename(dev, "size"), size);
+        FileUtils.set_contents(Path.build_filename(dev, "removable"), removable);
+    } catch (FileError e) {
+        error("fixture write failed: %s", e.message);
+    }
+}
+
+private void test_disks() {
+    reset_fixture();
+    write_block("nvme0n1", "83886080\n", "0\n");
+    write_block("sda", "1000\n", "1\n");
+    write_block("loop0", "2048000\n", "0\n");
+    write_block("zram0", "8000000\n", "0\n");
+    write_block("dm-0", "2048000\n", "0\n");
+    assert(Singularity.HardwareInfo.disks_from_sys(fixture_root) == (uint64) 83886080 * 512);
+}
+
 private void test_connector_is_ignored() {
     reset_fixture();
     write_vendor("card0-DP-1", "0x1002\n");
@@ -82,6 +109,8 @@ private int main(string[] args) {
     Test.add_func("/hardware-info/secondary-intel-card", test_secondary_intel_card);
     Test.add_func("/hardware-info/hybrid-graphics", test_hybrid_graphics);
     Test.add_func("/hardware-info/ignore-connector", test_connector_is_ignored);
+    Test.add_func("/hardware-info/virtual-gpu", test_virtual_gpu);
+    Test.add_func("/hardware-info/disks", test_disks);
     int result = Test.run();
     if (FileUtils.test(fixture_root, FileTest.EXISTS)) {
         remove_path(File.new_for_path(fixture_root));

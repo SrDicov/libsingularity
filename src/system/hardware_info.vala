@@ -61,8 +61,10 @@ namespace Singularity {
         }
 
         public static string disk() {
+            uint64 total = disks_from_sys("/sys/block");
+            if (total > 0) return "%.1f GB".printf(total / 1000.0 / 1000.0 / 1000.0);
             try {
-                var file = File.new_for_path("/");
+                var file = File.new_for_path(Environment.get_home_dir());
                 var info = file.query_filesystem_info(FileAttribute.FILESYSTEM_SIZE, null);
                 uint64 size = info.get_attribute_uint64(FileAttribute.FILESYSTEM_SIZE);
                 return "%.1f GB".printf(size / 1000.0 / 1000.0 / 1000.0);
@@ -87,6 +89,40 @@ namespace Singularity {
                 }
             } catch (Error e) {}
             return "Unknown";
+        }
+
+        internal static uint64 disks_from_sys(string sys_block) {
+            uint64 total = 0;
+            try {
+                var dir = Dir.open(sys_block);
+                string? name;
+                while ((name = dir.read_name()) != null) {
+                    if (name.has_prefix("loop") || name.has_prefix("ram") || name.has_prefix("zram")
+                        || name.has_prefix("dm-") || name.has_prefix("sr") || name.has_prefix("md")
+                        || name.has_prefix("fd") || name.has_prefix("nbd")) continue;
+                    string base_path = Path.build_filename(sys_block, name);
+                    string content;
+                    if (FileUtils.get_contents(Path.build_filename(base_path, "removable"), out content)
+                        && content.strip() == "1") continue;
+                    if (!FileUtils.get_contents(Path.build_filename(base_path, "size"), out content)) continue;
+                    uint64 sectors = 0;
+                    if (!uint64.try_parse(content.strip(), out sectors)) continue;
+                    total += sectors * 512;
+                }
+            } catch (Error e) {}
+            return total;
+        }
+
+        private static string? virtual_gpu(string vendor_id) {
+            switch (vendor_id) {
+                case "0x1af4": return "VirtIO GPU";
+                case "0x15ad": return "VMware SVGA";
+                case "0x1234": return "QEMU Standard VGA";
+                case "0x1414": return "Microsoft Hyper-V Video";
+                case "0x80ee": return "VirtualBox Graphics";
+                case "0x1b36": return "QXL Paravirtual Graphics";
+            }
+            return null;
         }
 
         internal static string graphics_from_drm(string drm_path) {
@@ -121,7 +157,7 @@ namespace Singularity {
             if (nvidia) return "NVIDIA Graphics";
             if (amd) return "AMD Graphics";
             if (intel) return "Intel Graphics";
-            if (unknown != null) return "Unknown GPU (" + unknown + ")";
+            if (unknown != null) return virtual_gpu(unknown) ?? "Unknown GPU (" + unknown + ")";
             return "Unknown Graphics";
         }
 
