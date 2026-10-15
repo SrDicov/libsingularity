@@ -71,7 +71,7 @@ namespace Singularity.Shell {
          * @param reason    Human-readable description of why the access is needed.
          * @return          One of: "allow", "allow_session", "allow_always", "deny".
          */
-        public abstract string show_permission(string category, string resource, string reason) throws IOError;
+        public abstract async string show_permission(string category, string resource, string reason) throws IOError;
 
         /**
          * Shows a simple confirm dialog for ush-broker (trust-dir, dev-shell,
@@ -82,7 +82,7 @@ namespace Singularity.Shell {
          * @param body  Human-readable body / question.
          * @return      true if the user confirmed, false otherwise.
          */
-        public abstract bool show_confirm(string title, string body) throws IOError;
+        public abstract async bool show_confirm(string title, string body) throws IOError;
 
         /**
          * Renders a live shell component of the primary monitor to a PNG.
