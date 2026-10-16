@@ -583,6 +583,16 @@ if get_option('system')
   )
   test('hardware-info', hardware_info_test)
 
+  timezone_util_test = executable(
+    'timezone-util-test',
+    files(
+      'tests/timezone_util_test.vala',
+      'src/system/timezone_util.vala',
+    ),
+    dependencies: [gio_dep],
+  )
+  test('timezone-util', timezone_util_test)
+
   autostart_test = executable(
     'autostart-test',
     files(

@@ -9,18 +9,13 @@ namespace Singularity {
             if (!file.query_exists()) {
                 return {"UTC", "Europe/Rome", "America/New_York", "Asia/Tokyo"};
             }
-            var l = new List<string>();
+            var l = new GenericArray<string>();
             walk(File.new_for_path("/usr/share/zoneinfo"), "", l);
-            l.sort(string.collate);
-            string[] arr = new string[l.length()];
-            int i = 0;
-            foreach (var tz in l) {
-                arr[i++] = tz;
-            }
-            return arr;
+            l.sort((a, b) => a.collate(b));
+            return l.steal();
         }
 
-        private static void walk(File dir, string prefix, List<string> list) {
+        private static void walk(File dir, string prefix, GenericArray<string> list) {
             try {
                 var enumerator = dir.enumerate_children(
                     FileAttribute.STANDARD_NAME + "," + FileAttribute.STANDARD_TYPE, 0);
@@ -29,10 +24,12 @@ namespace Singularity {
                     string name = info.get_name();
                     if (name == "." || name == ".." || name == "posix" ||
                         name == "right" || name == "Etc" || name == "SystemV") continue;
+                    if (name.contains(".") || name == "leapseconds" || name == "posixrules" ||
+                        name == "localtime" || name == "Factory") continue;
                     if (info.get_file_type() == FileType.DIRECTORY) {
                         walk(dir.get_child(name), prefix + name + "/", list);
                     } else {
-                        list.append(prefix + name);
+                        list.add(prefix + name);
                     }
                 }
             } catch (Error e) {}

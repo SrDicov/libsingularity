@@ -30,23 +30,23 @@ namespace Singularity {
                 proxy = yield Bus.get_proxy(BusType.SYSTEM, "org.freedesktop.timedate1", "/org/freedesktop/timedate1");
                 message("DateTimeManager: Connected to org.freedesktop.timedate1");
 
-                proxy.notify["ntp"].connect(() => {
-                    ntp_active = proxy.ntp;
-                    state_changed();
-                });
-                proxy.notify["timezone"].connect(() => {
-                    timezone = proxy.timezone;
-                    state_changed();
-                });
-
-                ntp_active = proxy.ntp;
-                timezone = proxy.timezone;
-                state_changed();
+                ((GLib.DBusProxy) proxy).g_properties_changed.connect(() => refresh());
+                refresh();
             } catch (Error e) {
                 warning("Failed to connect to timedate1: %s", e.message);
             }
         }
 
+
+        private void refresh() {
+            string zone = proxy.timezone ?? "";
+            if (zone != "" && zone != timezone) {
+                Environment.set_variable("TZ", ":" + zone, true);
+                timezone = zone;
+            }
+            ntp_active = proxy.ntp;
+            state_changed();
+        }
 
         public void set_ntp(bool active) {
             if (proxy == null) return;
