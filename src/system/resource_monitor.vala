@@ -174,7 +174,11 @@ namespace Singularity {
                     best_key = key;
                 }
             }
-            name = best_key != "" ? best_key.split("\t", 2)[1] : "";
+            name = "";
+            if (best_key != "") {
+                string[] parts = best_key.split("\t", 2);
+                if (parts.length > 1) name = parts[1].make_valid();
+            }
             long ticks = Posix.sysconf(Posix._SC_CLK_TCK);
             if (ticks <= 0) ticks = 100;
             return best * 100.0 / (ticks * seconds);
