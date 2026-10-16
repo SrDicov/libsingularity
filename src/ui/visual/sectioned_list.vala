@@ -154,7 +154,7 @@ namespace Singularity.Widgets {
             Graphene.Point p;
             if (!pending_reveal.compute_point(content, Graphene.Point() { x = 0, y = 0 }, out p)) return;
             pending_reveal = null;
-            double target = double.max(0, p.y);
+            double target = double.max(0, p.y - 12);
             Idle.add(() => {
                 adj.value = target;
                 content.queue_draw();
