@@ -22,6 +22,7 @@ namespace Singularity.Widgets {
         private string[] row_text = {};
         private int[] row_section = {};
         private int sel_index = -1;
+        private Widget? pending_reveal = null;
 
         public string? selected_id {
             get { return sel_index >= 0 ? row_ids[sel_index] : null; }
@@ -65,6 +66,7 @@ namespace Singularity.Widgets {
             append(overlay);
 
             scroll.vadjustment.value_changed.connect(update_sticky);
+            scroll.vadjustment.changed.connect(reveal_pending);
             map.connect(() => Idle.add(() => { update_sticky(); return false; }));
         }
 
@@ -139,15 +141,25 @@ namespace Singularity.Widgets {
             for (int i = 0; i < row_ids.length; i++) {
                 if (row_ids[i] != id) continue;
                 select_row(i);
-                var row = rows[i];
-                Idle.add(() => {
-                    Graphene.Point p;
-                    if (row.compute_point(content, Graphene.Point() { x = 0, y = 0 }, out p))
-                        scroll.vadjustment.value = double.max(0, p.y - 24);
-                    return false;
-                });
+                pending_reveal = headers[row_section[i]];
+                reveal_pending();
                 return;
             }
+        }
+
+        private void reveal_pending() {
+            if (pending_reveal == null || pending_reveal.get_height() <= 0) return;
+            var adj = scroll.vadjustment;
+            if (adj.page_size <= 0) return;
+            Graphene.Point p;
+            if (!pending_reveal.compute_point(content, Graphene.Point() { x = 0, y = 0 }, out p)) return;
+            pending_reveal = null;
+            double target = double.max(0, p.y);
+            Idle.add(() => {
+                adj.value = target;
+                content.queue_draw();
+                return false;
+            });
         }
 
         private void select_row(int idx) {
@@ -168,7 +180,7 @@ namespace Singularity.Widgets {
             for (int i = 0; i < rows.length; i++) {
                 bool match = true;
                 foreach (var w in words) {
-                    if (w != "" && !(w in row_text[i])) {
+                    if (w != "" && !((" " + w) in row_text[i])) {
                         match = false;
                         break;
                     }
@@ -180,6 +192,7 @@ namespace Singularity.Widgets {
                 headers[s].visible = seen[s];
                 section_boxes[s].visible = seen[s];
             }
+            scroll.vadjustment.value = 0;
             Idle.add(() => { update_sticky(); return false; });
         }
 
