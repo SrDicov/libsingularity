@@ -123,6 +123,12 @@ namespace Singularity.Widgets {
                 layout.set_font_description(font);
                 int tw, th;
                 layout.get_pixel_size(out tw, out th);
+                double room = (radius - _stroke / 2.0) * 2.0 * 0.78;
+                if (tw > room && tw > 0) {
+                    font.set_absolute_size((int)(size * 0.40 * room / tw * Pango.SCALE));
+                    layout.set_font_description(font);
+                    layout.get_pixel_size(out tw, out th);
+                }
                 cr.move_to(cx - tw / 2.0, cy - th / 2.0);
                 cr.set_source_rgba(fg.red, fg.green, fg.blue, fg.alpha);
                 Pango.cairo_show_layout(cr, layout);
