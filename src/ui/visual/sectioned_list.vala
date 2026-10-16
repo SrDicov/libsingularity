@@ -123,8 +123,31 @@ namespace Singularity.Widgets {
             rows += btn;
             row_checks += check;
             row_ids += id;
-            row_text += (label + " " + (subtitle ?? "")).down();
+            row_text += normalize(label + " " + (subtitle ?? "") + " " + header_titles[sec]);
             row_section += sec;
+        }
+
+        private static string normalize(string text) {
+            var sb = new StringBuilder();
+            unichar c;
+            int i = 0;
+            while (text.get_next_char(ref i, out c)) sb.append_unichar(c.isalnum() ? c.tolower() : ' ');
+            return " " + sb.str + " ";
+        }
+
+        public void select(string id) {
+            for (int i = 0; i < row_ids.length; i++) {
+                if (row_ids[i] != id) continue;
+                select_row(i);
+                var row = rows[i];
+                Idle.add(() => {
+                    Graphene.Point p;
+                    if (row.compute_point(content, Graphene.Point() { x = 0, y = 0 }, out p))
+                        scroll.vadjustment.value = double.max(0, p.y - 24);
+                    return false;
+                });
+                return;
+            }
         }
 
         private void select_row(int idx) {
@@ -139,11 +162,17 @@ namespace Singularity.Widgets {
         }
 
         private void apply_filter() {
-            string q = search.text.down().strip();
+            string[] words = normalize(search.text).split(" ");
             var seen = new bool[section_boxes.length];
 
             for (int i = 0; i < rows.length; i++) {
-                bool match = q == "" || q in row_text[i];
+                bool match = true;
+                foreach (var w in words) {
+                    if (w != "" && !(w in row_text[i])) {
+                        match = false;
+                        break;
+                    }
+                }
                 rows[i].visible = match;
                 if (match) seen[row_section[i]] = true;
             }

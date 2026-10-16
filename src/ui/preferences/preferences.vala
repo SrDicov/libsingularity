@@ -1103,6 +1103,14 @@ namespace Singularity.Widgets {
             }
             int list_min, list_nat;
             list.measure(Orientation.VERTICAL, for_size, out list_min, out list_nat, null, null);
+            var scrolled = child as ScrolledWindow;
+            var policy = list_nat > limit ? PolicyType.AUTOMATIC : PolicyType.EXTERNAL;
+            if (scrolled != null && scrolled.vscrollbar_policy != policy) {
+                Idle.add(() => {
+                    scrolled.vscrollbar_policy = policy;
+                    return Source.REMOVE;
+                });
+            }
             minimum = natural = int.max(child_min, int.min(list_nat, limit));
         }
 
