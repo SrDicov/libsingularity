@@ -46,18 +46,18 @@ namespace Singularity {
 
         public void update_locale(string[] locale_settings) {
             if (proxy == null) return;
-            var merged = new Gee.ArrayList<string>();
-            foreach (string s in locale_settings) merged.add(s);
+            string[] merged = {};
+            foreach (string s in locale_settings) merged += s;
             foreach (string current in current_locale) {
                 string key = current.split("=", 2)[0];
                 bool replaced = false;
                 foreach (string s in locale_settings) {
                     if (s.split("=", 2)[0] == key) replaced = true;
                 }
-                if (!replaced) merged.add(current);
+                if (!replaced) merged += current;
             }
             try {
-                proxy.set_locale(merged.to_array(), true);
+                proxy.set_locale(merged, true);
             } catch (Error e) {
                 warning("Failed to set locale: %s", e.message);
             }
@@ -84,11 +84,18 @@ namespace Singularity {
 
         private List<string> installed_locales() {
             var list = new List<string>();
-            string output;
-            try {
-                Process.spawn_command_line_sync("locale -a", out output, null, null);
-            } catch (SpawnError e) {
-                warning("Failed to list installed locales: %s", e.message);
+            string output = "";
+            foreach (string command in new string[] { "localectl list-locales", "locale -a" }) {
+                int status;
+                try {
+                    Process.spawn_command_line_sync(command, out output, null, out status);
+                    if (status == 0 && output.strip() != "") break;
+                } catch (SpawnError e) {
+                    output = "";
+                }
+            }
+            if (output.strip() == "") {
+                warning("Failed to list installed locales");
                 return list;
             }
             foreach (string line in output.split("\n")) {
