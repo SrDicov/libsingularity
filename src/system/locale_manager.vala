@@ -46,8 +46,18 @@ namespace Singularity {
 
         public void update_locale(string[] locale_settings) {
             if (proxy == null) return;
+            var merged = new Gee.ArrayList<string>();
+            foreach (string s in locale_settings) merged.add(s);
+            foreach (string current in current_locale) {
+                string key = current.split("=", 2)[0];
+                bool replaced = false;
+                foreach (string s in locale_settings) {
+                    if (s.split("=", 2)[0] == key) replaced = true;
+                }
+                if (!replaced) merged.add(current);
+            }
             try {
-                proxy.set_locale(locale_settings, true);
+                proxy.set_locale(merged.to_array(), true);
             } catch (Error e) {
                 warning("Failed to set locale: %s", e.message);
             }
@@ -57,7 +67,7 @@ namespace Singularity {
             var list = new List<string>();
             try {
                 var file = File.new_for_path("/usr/share/i18n/SUPPORTED");
-                if (!file.query_exists()) return list;
+                if (!file.query_exists()) return installed_locales();
                 var dis = new DataInputStream(file.read());
                 string? line;
                 while ((line = dis.read_line(null)) != null) {
@@ -68,6 +78,29 @@ namespace Singularity {
                 }
             } catch (Error e) {
                 warning("Failed to read supported locales: %s", e.message);
+            }
+            return list;
+        }
+
+        private List<string> installed_locales() {
+            var list = new List<string>();
+            string output;
+            try {
+                Process.spawn_command_line_sync("locale -a", out output, null, null);
+            } catch (SpawnError e) {
+                warning("Failed to list installed locales: %s", e.message);
+                return list;
+            }
+            foreach (string line in output.split("\n")) {
+                string name = line.strip();
+                if (name == "" || name == "C" || name == "POSIX" || name.has_prefix("C.")) continue;
+                string[] parts = name.split(".", 2);
+                if (parts.length == 2 && parts[1].down().replace("-", "") == "utf8") name = parts[0] + ".UTF-8";
+                bool seen = false;
+                foreach (string l in list) {
+                    if (l == name) seen = true;
+                }
+                if (!seen) list.append(name);
             }
             return list;
         }
