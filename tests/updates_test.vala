@@ -230,11 +230,126 @@ private void test_device_security() {
     }
 }
 
+private class FakeUpdated : Object {
+    public string state = "available";
+    public string last_request = "";
+    private SocketService service;
+
+    public FakeUpdated(string path) throws Error {
+        service = new SocketService();
+        service.add_address(new UnixSocketAddress(path), SocketType.STREAM, SocketProtocol.DEFAULT, null, null);
+        service.incoming.connect((conn) => {
+            handle.begin(conn);
+            return true;
+        });
+        service.start();
+    }
+
+    private async void handle(SocketConnection conn) {
+        try {
+            var input = new DataInputStream(conn.input_stream);
+            string? line = yield input.read_line_async();
+            last_request = line != null ? line.chomp() : "";
+            while ((line = yield input.read_line_async()) != null && line.chomp() != "") {
+            }
+            string body;
+            string status = "200 OK";
+            if (last_request.has_prefix("POST /download?token=") && state == "available") {
+                state = "downloading";
+                body = "{\"state\":\"downloading\",\"percent\":40}";
+            } else if (last_request.has_prefix("POST /download")) {
+                status = "409 Conflict";
+                body = "{\"state\":\"idle\",\"error\":\"no update\"}";
+            } else if (state == "available") {
+                body = "{\"state\":\"available\",\"latest\":\"v184\",\"product_name\":\"Sinty OS Event Horizon\",\"product_version\":\"26\",\"product_build\":\"26A018\",\"consent_token\":\"%s\",\"percent\":0}".printf(string.nfill(64, 'a'));
+            } else {
+                body = "{\"state\":\"%s\",\"percent\":40}".printf(state);
+            }
+            string reply = "HTTP/1.0 %s\r\nContent-Type: application/json\r\n\r\n%s\n".printf(status, body);
+            size_t written;
+            yield conn.output_stream.write_all_async(reply.data, Priority.DEFAULT, null, out written);
+            yield conn.close_async();
+        } catch (Error e) {
+            warning("fake updated: %s", e.message);
+        }
+    }
+
+    public void stop() {
+        service.stop();
+    }
+}
+
+private void test_updated_provider() {
+    string path = Path.build_filename(Environment.get_tmp_dir(), "updates-test-updated.sock");
+    FileUtils.unlink(path);
+    FakeUpdated fake;
+    try {
+        fake = new FakeUpdated(path);
+    } catch (Error e) {
+        Test.skip("no unix sockets: " + e.message);
+        return;
+    }
+    var loop = new MainLoop();
+    var provider = new UpdatedProvider(path);
+    bool probed = false;
+    provider.probe.begin((obj, res) => {
+        probed = provider.probe.end(res);
+        loop.quit();
+    });
+    loop.run();
+    assert(probed);
+    assert(provider.kind == "image");
+    assert(provider.state == State.AVAILABLE);
+    assert(provider.available_version == "Sinty OS Event Horizon 26 (26A018)");
+    assert(provider.can_download);
+    Error? failure = null;
+    provider.download.begin((obj, res) => {
+        try {
+            provider.download.end(res);
+        } catch (Error e) {
+            failure = e;
+        }
+        loop.quit();
+    });
+    loop.run();
+    assert(failure == null);
+    assert(fake.last_request.has_prefix("POST /download?token=" + string.nfill(64, 'a')));
+    assert(provider.state == State.DOWNLOADING);
+    assert(provider.progress > 0.39 && provider.progress < 0.41);
+    fake.state = "ready";
+    provider.schedule.begin((obj, res) => {
+        try {
+            provider.schedule.end(res);
+        } catch (Error e) {
+            failure = e;
+        }
+        loop.quit();
+    });
+    loop.run();
+    assert(failure == null);
+    assert(provider.state == State.SCHEDULED);
+    fake.state = "idle";
+    provider.download.begin((obj, res) => {
+        try {
+            provider.download.end(res);
+        } catch (Error e) {
+            failure = e;
+        }
+        loop.quit();
+    });
+    loop.run();
+    assert(failure != null);
+    assert(!UpdatedProvider.valid_token("xyz"));
+    fake.stop();
+    FileUtils.unlink(path);
+}
+
 public static int main(string[] args) {
     Test.init(ref args);
     Test.add_func("/updates/config", test_config);
     Test.add_func("/updates/state", test_state);
     Test.add_func("/updates/packagekit-parsing", test_packagekit_parsing);
+    Test.add_func("/updates/updated-provider", test_updated_provider);
     Test.add_func("/firmware/markup", test_markup);
     Test.add_func("/firmware/hsi", test_hsi);
     Test.add_func("/firmware/variants", test_firmware_variants);
