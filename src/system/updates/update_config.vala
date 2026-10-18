@@ -44,6 +44,7 @@ namespace Singularity.Updates {
             switch (value.strip().down()) {
                 case "packagekit": return "packagekit";
                 case "atomic": return "atomic";
+                case "updated": return "updated";
                 case "none": return "none";
             }
             return "auto";
@@ -121,6 +122,10 @@ namespace Singularity.Updates {
             if (config.backend == "atomic" || config.backend == "auto") {
                 var atomic = new AtomicProvider(config);
                 if (yield atomic.probe()) return atomic;
+            }
+            if (config.backend == "updated" || config.backend == "auto") {
+                var updated = new UpdatedProvider();
+                if (yield updated.probe()) return updated;
             }
             if (config.backend == "packagekit" || config.backend == "auto") {
                 var packagekit = new PackageKitProvider();

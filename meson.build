@@ -508,6 +508,7 @@ if get_option('system')
     'src/system/updates/update_config.vala',
     'src/system/updates/packagekit_provider.vala',
     'src/system/updates/atomic_provider.vala',
+    'src/system/updates/updated_provider.vala',
     'src/system/updates/firmware_client.vala',
     'src/system/updates/device_security.vala',
     'src/system/firewall.vala',
@@ -734,11 +735,12 @@ if get_option('system')
       'src/system/updates/update_config.vala',
       'src/system/updates/packagekit_provider.vala',
       'src/system/updates/atomic_provider.vala',
+      'src/system/updates/updated_provider.vala',
       'src/system/updates/firmware_client.vala',
       'src/system/updates/device_security.vala',
     ),
     c_args: power_c_args + updates_c_args,
-    dependencies: [gio_dep, giounix_dep, gee_dep, soup_sys_dep],
+    dependencies: [gio_dep, giounix_dep, gee_dep, soup_sys_dep, json_dep],
     vala_args: ['--pkg', 'posix'],
   )
   test('updates', updates_test, env: ['TMPDIR=' + meson.current_build_dir()])
