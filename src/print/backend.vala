@@ -25,12 +25,9 @@ namespace Singularity.Print {
     /**
      * The print system seam. Everything that reads printers and jobs or
      * submits documents speaks the IPP dialect libcups uses on the CUPS
-     * socket, so any spooler answering it works unchanged. Administrative
-     * operations differ between spoolers and live in subclasses:
-     * `CupsBackend` uses the CUPS IPP extensions, `TorchioBackend` uses
-     * the torchio command line, which asks the ush portal whenever a
-     * trust decision is needed. `features` tells the interface which
-     * actions to offer.
+     * socket, so any spooler answering it works unchanged. Spoolers differ
+     * in which administrative operations they offer, and `features` tells
+     * the interface which actions to show.
      */
     public abstract class PrinterBackend : Object {
         public abstract string id { get; }
@@ -527,88 +524,27 @@ namespace Singularity.Print {
     }
 
     /**
-     * Torchio, the rootless per-user spooler. It answers the libcups IPP
-     * dialect on its CUPS socket, so reading and printing go through the
-     * shared IPP code; configuration goes through the torchio command,
-     * and adding a discovered printer is confirmed by the user through
-     * the ush portal on the daemon side.
+     * Torchio, the rootless per-user spooler. It answers the CUPS IPP
+     * extensions on its CUPS socket, and asks the user through the ush
+     * portal before a new printer is added.
      */
-    public class TorchioBackend : PrinterBackend {
+    public class TorchioBackend : CupsBackend {
         public override string id { get { return "torchio"; } }
 
         public override BackendFeature features {
             get {
                 return BackendFeature.ADD_URI | BackendFeature.ADD_DISCOVERED | BackendFeature.REMOVE
-                    | BackendFeature.SET_DEFAULT;
+                    | BackendFeature.SET_DEFAULT | BackendFeature.PAUSE | BackendFeature.EDIT_INFO
+                    | BackendFeature.DEFAULT_OPTIONS | BackendFeature.HOLD_JOBS | BackendFeature.COMPLETED_JOBS;
             }
-        }
-
-        private async string torchio(string[] args, Cancellable? cancellable = null) throws Error {
-            string[] argv = {"torchio"};
-            foreach (var a in args) argv += a;
-            var proc = new Subprocess.newv(argv, SubprocessFlags.STDOUT_PIPE | SubprocessFlags.STDERR_PIPE);
-            string? out_text, err_text;
-            yield proc.communicate_utf8_async(null, cancellable, out out_text, out err_text);
-            if (!proc.get_if_exited() || proc.get_exit_status() != 0) {
-                string msg = (err_text ?? "").strip();
-                if (msg.contains("denied") || msg.contains("deny"))
-                    throw new PrintError.NOT_AUTHORIZED(msg);
-                throw new PrintError.FAILED(msg != "" ? msg : _("The print service reported an error"));
-            }
-            printers_changed();
-            return out_text ?? "";
-        }
-
-        public override async void add_printer(string name, string uri, string info, string location,
-                                               string? driver = null) throws Error {
-            yield torchio({"printer", "add", sanitize_name(name != "" ? name : info), uri});
-        }
-
-        public override async void add_discovered(DiscoveredPrinter device, string name) throws Error {
-            yield torchio({"discover", "add", device.key, sanitize_name(name)});
-        }
-
-        public override async void remove_printer(string name) throws Error {
-            yield torchio({"printer", "rm", name});
-        }
-
-        public override async void set_default(string name) throws Error {
-            yield torchio({"printer", "default", name});
-        }
-
-        public override async void set_paused(string name, bool paused) throws Error {
-            throw new PrintError.UNSUPPORTED(_("Pausing is not available with this print service"));
         }
 
         public override async void set_shared(string name, bool shared) throws Error {
             throw new PrintError.UNSUPPORTED(_("Sharing is managed by the print service"));
         }
 
-        public override async void set_info(string name, string info, string location) throws Error {
-            throw new PrintError.UNSUPPORTED(_("Renaming is not available with this print service"));
-        }
-
-        public override async void set_default_options(string name, JobOptions options) throws Error {
-            throw new PrintError.UNSUPPORTED(_("Default options are not available with this print service"));
-        }
-
-        public override async Gee.List<DiscoveredPrinter> discover(Cancellable? cancellable = null) throws Error {
-            var text = yield torchio({"discover"}, cancellable);
-            var list = new Gee.ArrayList<DiscoveredPrinter>();
-            var regex = new Regex("\\s{2,}");
-            foreach (var line in text.split("\n")) {
-                if (line.has_prefix("KEY") || line.strip() == "" || line.has_prefix("no printers")
-                    || line.has_prefix("confirm")) continue;
-                var cols = regex.split(line.strip());
-                if (cols.length < 3) continue;
-                var d = new DiscoveredPrinter();
-                d.key = cols[0];
-                d.name = cols[1];
-                d.uri = cols[2];
-                d.driverless = true;
-                list.add(d);
-            }
-            return list;
+        public override async Gee.List<LegacyDriver> legacy_drivers() throws Error {
+            throw new PrintError.UNSUPPORTED(_("This print service does not use legacy drivers"));
         }
     }
 }
