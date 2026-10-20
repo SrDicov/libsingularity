@@ -118,6 +118,20 @@ namespace Singularity.Widgets {
             }
         }
 
+        public void remove_page (string name) {
+            var child = stack.get_child_by_name (name);
+            if (child == null) return;
+            bool was_visible = stack.visible_child == child;
+            stack.remove (child);
+            titles.unset (name);
+            icons.unset (name);
+            if (primary.remove (name)) switcher.remove_option (name);
+            secondary.remove (name);
+            more.visible = secondary.size > 0;
+            if (last_primary == name) last_primary = primary.size > 0 ? primary[0] : "";
+            if (was_visible && last_primary != "") page = last_primary;
+        }
+
         public string page {
             owned get {
                 return stack.visible_child_name;

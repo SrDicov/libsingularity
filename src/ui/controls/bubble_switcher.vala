@@ -64,6 +64,19 @@ namespace Singularity.Widgets {
             update_active_button();
         }
 
+        public void remove_option(string name) {
+            var btn = _buttons.get(name);
+            if (btn == null) return;
+            remove(btn);
+            _buttons.unset(name);
+            _names.remove(name);
+            if (_stack == null && _active_name == name) {
+                _active_name = _names.size > 0 ? _names[0] : null;
+                if (_active_name != null) selected(_active_name);
+            }
+            update_active_button();
+        }
+
         public void set_active(string name) {
             if (_stack != null) {
                 _stack.visible_child_name = name;
