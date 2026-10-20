@@ -451,6 +451,7 @@ namespace Singularity.Widgets {
         private void build_list_actions() {
             var list_box = new Box(Orientation.VERTICAL, 4);
             list_box.add_css_class("welcome-page-list");
+            list_box.overflow = Overflow.HIDDEN;
             list_box.halign = Align.FILL;
             list_box.hexpand = true;
 

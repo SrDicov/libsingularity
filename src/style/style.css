@@ -3996,6 +3996,10 @@ window.singularity.dialog {
     border-bottom-right-radius: 22px;
 }
 
+.sidebar .welcome-page-list {
+    border-radius: 22px;
+}
+
 .singularity .preferences-row button {
     min-height: 22px;
     padding-top: 0;
@@ -4805,6 +4809,8 @@ button.flat.singularity-hover-btn.suggested-action:active {
 }
 .welcome-page-row {
     border-radius: 0;
+    border: none;
+    box-shadow: none;
     background-color: transparent;
     transition: background-color 0.12s ease;
 }
