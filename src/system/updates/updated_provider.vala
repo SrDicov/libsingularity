@@ -32,7 +32,7 @@ namespace Singularity.Updates {
             can_download = true;
             can_schedule = false;
             can_unschedule = false;
-            has_history = false;
+            has_history = true;
             description = _("Updated as a whole system image. Your files and apps stay as they are.");
             return true;
         }
@@ -206,7 +206,27 @@ namespace Singularity.Updates {
         }
 
         public override async Gee.List<HistoryEntry> history() throws Error {
-            return new Gee.ArrayList<HistoryEntry>();
+            var list = new Gee.ArrayList<HistoryEntry>();
+            Json.Object reply;
+            try {
+                reply = yield request("GET", "/history", 5);
+            } catch (Error e) {
+                debug("Updates: no history from %s: %s", socket_path, e.message);
+                return list;
+            }
+            if (!reply.has_member("entries")) return list;
+            reply.get_array_member("entries").foreach_element((array, index, node) => {
+                var o = node.get_object();
+                if (o == null) return;
+                string version = o.has_member("version") ? o.get_string_member("version") : "";
+                string build = o.has_member("build") ? o.get_string_member("build") : "";
+                bool success = !o.has_member("success") || o.get_boolean_member("success");
+                int64 time = o.has_member("time") ? o.get_int_member("time") : 0;
+                string title = success ? _("Updated to %s").printf(version) : _("Update to %s Failed").printf(version);
+                list.add(new HistoryEntry(title, build != "" ? _("Build %s").printf(build) : "", time, success));
+            });
+            list.sort((a, b) => a.time > b.time ? -1 : (a.time < b.time ? 1 : 0));
+            return list;
         }
     }
 }
