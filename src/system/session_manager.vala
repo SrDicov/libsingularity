@@ -2,7 +2,7 @@ using GLib;
 
 namespace Singularity {
 
-    [DBus (name = "io.github.singularityos_lab.ush.Broker1")]
+    [DBus (name = "dev.sinty.ush.Broker1")]
     interface UshSessionBroker : Object {
         public abstract void reboot() throws GLib.Error;
         public abstract void power_off() throws GLib.Error;
@@ -168,8 +168,8 @@ namespace Singularity {
             try {
                 var broker = Bus.get_proxy_sync<UshSessionBroker>(
                     BusType.SESSION,
-                    "io.github.singularityos_lab.ush.Broker",
-                    "/io/github/singularityos_lab/ush/Broker"
+                    "dev.sinty.ush.Broker",
+                    "/dev/sinty/ush/Broker"
                 );
                 if (rebooting) {
                     broker.reboot();
