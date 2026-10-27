@@ -29,6 +29,7 @@ namespace Singularity {
 
         private static Compute? shared_instance;
         private static Mutex shared_lock = Mutex();
+        private static Private per_thread = new Private((data) => ((Compute) data).unref());
 
         private void* ctx;
         private uint flush_id;
@@ -47,6 +48,35 @@ namespace Singularity {
             if (shared_instance == null) shared_instance = new Compute();
             shared_lock.unlock();
             return shared_instance;
+        }
+
+        public static Compute for_thread() {
+            typeof(Compute).class_ref();
+            unowned Compute? compute = (Compute?) per_thread.get();
+            if (compute != null) return compute;
+            var created = new Compute();
+            per_thread.set(created.ref());
+            return created;
+        }
+
+        public static Gdk.Pixbuf load_scaled(string path, int width, int height, bool preserve_aspect) throws Error {
+            var info = File.new_for_path(path).query_info("time::modified,time::modified-usec,standard::size",
+                                                          FileQueryInfoFlags.NONE);
+            var id = "%s\n%llu.%u\n%lld\n%dx%d\n%d".printf(path,
+                info.get_attribute_uint64("time::modified"), info.get_attribute_uint32("time::modified-usec"),
+                info.get_size(), width, height, preserve_aspect ? 1 : 0);
+            string? failure = null;
+            var packed = for_thread().call(5, key("pixbuf-scaled", id.data), () => {
+                try {
+                    return pack_pixbuf(new Gdk.Pixbuf.from_file_at_scale(path, width, height, preserve_aspect));
+                } catch (Error e) {
+                    failure = e.message;
+                    return pack_pixbuf(null);
+                }
+            });
+            var pixbuf = unpack_pixbuf(packed);
+            if (pixbuf == null) throw new IOError.FAILED(failure ?? "cannot load %s".printf(path));
+            return pixbuf;
         }
 
         public static uint8[] pack_pixbuf(Gdk.Pixbuf? pixbuf) {
@@ -132,7 +162,8 @@ namespace Singularity {
 
         public uint8[] call(uint32 region, uint8[] key, Producer producer) {
             if (ctx == null) return producer();
-            schedule_flush();
+            bool on_main = MainContext.default().is_owner();
+            if (on_main) schedule_flush();
             var pending = new Pending();
             pending.producer = producer;
             uint32 size = 0;
@@ -143,6 +174,10 @@ namespace Singularity {
             r = ctx_call(ctx, region * 2 + 1, key, key.length, null, 0, result, size,
                          produce_bytes, pending);
             if (r != 0) return pending.bytes ?? producer();
+            if (!on_main) {
+                uint64 report[6];
+                ctx_report(ctx, report);
+            }
             return result;
         }
     }
