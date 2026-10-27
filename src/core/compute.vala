@@ -81,7 +81,8 @@ namespace Singularity {
 
         public static uint8[] pack_pixbuf(Gdk.Pixbuf? pixbuf) {
             if (pixbuf == null) return new uint8[0];
-            unowned uint8[] data = pixbuf.read_pixel_bytes().get_data();
+            var pixels = pixbuf.read_pixel_bytes();
+            unowned uint8[] data = pixels.get_data();
             uint32 header[4] = { pixbuf.width, pixbuf.height, pixbuf.rowstride, pixbuf.has_alpha ? 1 : 0 };
             var packed = new uint8[16 + data.length];
             Memory.copy(packed, header, 16);
