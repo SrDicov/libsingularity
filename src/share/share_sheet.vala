@@ -125,7 +125,7 @@ namespace Singularity.Widgets {
                 string[] types = content.content_types();
                 if (types.length == 1 && types[0].has_prefix("image/") && content.files[0].get_path() != null) {
                     try {
-                        var pixbuf = new Gdk.Pixbuf.from_file_at_scale(content.files[0].get_path(), 96, 96, true);
+                        var pixbuf = Compute.load_scaled(content.files[0].get_path(), 96, 96, true);
                         var thumb = new Image.from_paintable(Gdk.Texture.for_pixbuf(pixbuf));
                         thumb.pixel_size = 48;
                         thumb.add_css_class("share-preview");

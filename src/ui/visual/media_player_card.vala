@@ -792,12 +792,12 @@ namespace Singularity.Widgets {
                     // is 64px, so load it at the display size (a bigger texture
                     // made the whole card huge). The blurred background below is
                     // a drawn paintable, not a widget, so it stays higher-res.
-                    var pixbuf = new Gdk.Pixbuf.from_file_at_scale(path, 64, 64, true);
+                    var pixbuf = Compute.load_scaled(path, 64, 64, true);
                     var texture = Gdk.Texture.for_pixbuf(pixbuf);
                     cover_art_picture.set_paintable(texture);
                     cover_stack.visible_child_name = "art";
                     try {
-                        var bg_pixbuf = new Gdk.Pixbuf.from_file_at_scale(path, 384, 384, true);
+                        var bg_pixbuf = Compute.load_scaled(path, 384, 384, true);
                         _bg_texture = Gdk.Texture.for_pixbuf(bg_pixbuf);
                     } catch { _bg_texture = texture; }
                     queue_draw();

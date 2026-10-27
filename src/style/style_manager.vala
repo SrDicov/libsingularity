@@ -945,7 +945,7 @@ namespace Singularity.Style {
         private string compute_primary_color(string path) {
             try {
                 // Sample at 32×32: enough to find dominant colors without being slow.
-                var pixbuf = new Gdk.Pixbuf.from_file_at_scale(path, 32, 32, false);
+                var pixbuf = Compute.load_scaled(path, 32, 32, false);
                 unowned uint8[] pixels = pixbuf.get_pixels();
                 int nc    = pixbuf.get_n_channels();
                 int rs    = pixbuf.get_rowstride();
