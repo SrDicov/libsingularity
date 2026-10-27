@@ -27,6 +27,9 @@ namespace Singularity {
         private static CallFn? ctx_call;
         private static ReportFn? ctx_report;
 
+        private static Compute? shared_instance;
+        private static Mutex shared_lock = Mutex();
+
         private void* ctx;
         private uint flush_id;
 
@@ -37,6 +40,31 @@ namespace Singularity {
         ~Compute() {
             if (flush_id != 0) Source.remove(flush_id);
             if (ctx != null) ctx_free(ctx);
+        }
+
+        public static Compute shared() {
+            shared_lock.lock();
+            if (shared_instance == null) shared_instance = new Compute();
+            shared_lock.unlock();
+            return shared_instance;
+        }
+
+        public static uint8[] pack_pixbuf(Gdk.Pixbuf? pixbuf) {
+            if (pixbuf == null) return new uint8[0];
+            unowned uint8[] data = pixbuf.read_pixel_bytes().get_data();
+            uint32 header[4] = { pixbuf.width, pixbuf.height, pixbuf.rowstride, pixbuf.has_alpha ? 1 : 0 };
+            var packed = new uint8[16 + data.length];
+            Memory.copy(packed, header, 16);
+            Memory.copy(&packed[16], data, data.length);
+            return packed;
+        }
+
+        public static Gdk.Pixbuf? unpack_pixbuf(uint8[] packed) {
+            if (packed.length <= 16) return null;
+            uint32 header[4];
+            Memory.copy(header, packed, 16);
+            return new Gdk.Pixbuf.from_bytes(new Bytes(packed[16:packed.length]), Gdk.Colorspace.RGB,
+                                             header[3] != 0, 8, (int) header[0], (int) header[1], (int) header[2]);
         }
 
         public static bool available() {

@@ -72,6 +72,25 @@ namespace Singularity.FileSystem {
          * @return The thumbnail, or null when none is cached or valid.
          */
         public static Gdk.Pixbuf? load(string uri, int64 mtime, int pixels) {
+            var id = new StringBuilder("%s\n%lld\n%d".printf(uri, mtime, pixels));
+            foreach (Size size in SIZES) {
+                try {
+                    var info = File.new_for_path(path_for(uri, size)).query_info(
+                        FileAttribute.TIME_MODIFIED + "," + FileAttribute.TIME_MODIFIED_USEC + "," + FileAttribute.STANDARD_SIZE,
+                        FileQueryInfoFlags.NONE);
+                    id.append_printf("\n%llu.%u:%lld", info.get_attribute_uint64(FileAttribute.TIME_MODIFIED),
+                                     info.get_attribute_uint32(FileAttribute.TIME_MODIFIED_USEC), info.get_size());
+                } catch (Error e) {
+                    id.append("\n-");
+                }
+            }
+            uint8[] packed = Compute.shared().call(3, Compute.key("thumbnail-cache", id.str.data), () => {
+                return Compute.pack_pixbuf(load_uncached(uri, mtime, pixels));
+            });
+            return Compute.unpack_pixbuf(packed);
+        }
+
+        private static Gdk.Pixbuf? load_uncached(string uri, int64 mtime, int pixels) {
             Size wanted = Size.for_pixels(pixels);
             int start = 0;
             while (SIZES[start] != wanted) start++;
