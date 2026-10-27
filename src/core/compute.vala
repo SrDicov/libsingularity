@@ -44,6 +44,7 @@ namespace Singularity {
         }
 
         public static Compute shared() {
+            typeof(Compute).class_ref();
             shared_lock.lock();
             if (shared_instance == null) shared_instance = new Compute();
             shared_lock.unlock();
