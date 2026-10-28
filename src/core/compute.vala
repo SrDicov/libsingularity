@@ -29,7 +29,6 @@ namespace Singularity {
 
         private static Compute? shared_instance;
         private static Mutex shared_lock = Mutex();
-        private static Private per_thread = new Private((data) => ((Compute) data).unref());
 
         private void* ctx;
         private uint flush_id;
@@ -52,12 +51,7 @@ namespace Singularity {
         }
 
         public static Compute for_thread() {
-            typeof(Compute).class_ref();
-            unowned Compute? compute = (Compute?) per_thread.get();
-            if (compute != null) return compute;
-            var created = new Compute();
-            per_thread.set(created.ref());
-            return created;
+            return shared();
         }
 
         public static Gdk.Pixbuf load_scaled(string path, int width, int height, bool preserve_aspect) throws Error {
