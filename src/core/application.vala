@@ -240,8 +240,41 @@ namespace Singularity {
             add_action(_window_path_action);
             notify["active-window"].connect(_sync_window_path);
             window_added.connect(_queue_menubar_update);
+            window_added.connect(_watch_suspended);
 
             _queue_menubar_update();
+        }
+
+        [CCode (cname = "prctl", cheader_filename = "sys/prctl.h")]
+        private static extern int _prctl_timerslack(int option, ulong value);
+
+        private bool _slack_raised = false;
+
+        private void _watch_suspended(Gtk.Window window) {
+            ((Gtk.Widget) window).realize.connect(() => {
+                var surface = window.get_surface();
+                if (surface != null) surface.notify["state"].connect(_update_timer_slack);
+            });
+            ((Gtk.Widget) window).unrealize.connect(() => Idle.add(() => {
+                _update_timer_slack();
+                return Source.REMOVE;
+            }));
+        }
+
+        private void _update_timer_slack() {
+            bool hidden = false;
+            foreach (var window in get_windows()) {
+                var toplevel = window.get_surface() as Gdk.Toplevel;
+                if (toplevel == null) continue;
+                if ((toplevel.get_state() & Gdk.ToplevelState.SUSPENDED) == 0) {
+                    hidden = false;
+                    break;
+                }
+                hidden = true;
+            }
+            if (hidden == _slack_raised) return;
+            _slack_raised = hidden;
+            _prctl_timerslack(29, hidden ? 50000000 : 0);
         }
 
         /**
