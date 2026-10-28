@@ -774,6 +774,18 @@ if get_option('system')
   )
   test('equalizer', equalizer_test, env: ['TMPDIR=' + meson.current_build_dir()])
 
+  audio_output_test = executable(
+    'audio-output-test',
+    files(
+      'tests/audio_output_test.vala',
+      'src/system/audio_manager.vala',
+    ),
+    c_args: power_c_args,
+    vala_args: ['--pkg', 'posix'],
+    dependencies: [gio_dep, giounix_dep, gee_dep, pulse_dep, pulse_glib_dep, m_dep],
+  )
+  test('audio-output', audio_output_test)
+
   sun_times_test = executable(
     'sun-times-test',
     files(

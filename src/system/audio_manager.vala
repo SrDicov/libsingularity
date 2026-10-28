@@ -53,6 +53,17 @@ namespace Singularity {
             max_volume = sound_settings.get_boolean("allow-volume-above-100-percent") ? 150.0 : 100.0;
         }
         public bool is_muted { get; private set; default = false; }
+
+        /** Output volume in percent above which long listening on headphones can harm hearing. */
+        public const double SAFE_HEADPHONE_VOLUME = 80.0;
+
+        /** Whether the default output plays into headphones or a headset. */
+        public bool headphones { get; private set; default = false; }
+
+        /** Whether headphones play louder than {@link SAFE_HEADPHONE_VOLUME}. */
+        public bool hearing_risk {
+            get { return headphones && !is_muted && volume > SAFE_HEADPHONE_VOLUME; }
+        }
         public string icon_name { get; private set; default = "audio-volume-medium-symbolic"; }
         public double input_volume { get; private set; default = 50.0; }
         public bool input_muted { get; private set; default = false; }
@@ -316,6 +327,10 @@ namespace Singularity {
                 double old_volume = volume;
                 bool old_muted = is_muted;
                 default_sink_index = info.index;
+                if (info.name != MONO_SINK) {
+                    headphones = AudioManager.is_headphones(info.proplist.gets("device.form_factor"),
+                        info.active_port != null ? info.active_port->name : null, info.description);
+                }
                 output_channels = info.volume.channels;
                 double vol = 0;
                 if (info.volume.channels > 0) {
@@ -576,6 +591,32 @@ namespace Singularity {
                 c.set_default_sink(MONO_SINK, null);
                 queue_refresh();
             });
+        }
+
+        /**
+         * Whether an output device is headphones or a headset.
+         *
+         * The form factor decides when the device reports one. A built-in card
+         * reports the jack through its active port, and USB and Bluetooth
+         * devices without a form factor are recognized by their name.
+         */
+        public static bool is_headphones(string? form_factor, string? port, string? description) {
+            switch (form_factor ?? "") {
+                case "headphones":
+                case "headset":
+                case "hands-free":
+                case "handsfree":
+                    return true;
+                case "speaker":
+                case "tv":
+                case "car":
+                    return false;
+            }
+            string p = (port ?? "").down();
+            if (p.contains("headphone") || p.contains("headset")) return true;
+            string d = (description ?? "").down();
+            return d.contains("headphone") || d.contains("headset") || d.contains("earbud")
+                || d.contains("buds") || d.contains("airpods");
         }
 
         private static string form_factor_to_icon(string? form_factor) {
