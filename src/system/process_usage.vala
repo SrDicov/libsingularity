@@ -22,6 +22,15 @@ namespace Singularity {
         private int64 previous_time = 0;
         private Gee.HashMap<int, double?> busy_by_pid = new Gee.HashMap<int, double?>();
         private Gee.HashMap<int, uint64?> memory_by_pid = new Gee.HashMap<int, uint64?>();
+        private Gee.HashMap<int, FdScan> scans = new Gee.HashMap<int, FdScan>();
+        private const uint FULL_SCAN_EVERY = 6;
+
+        private class FdScan {
+            public uint count;
+            public uint64 sum;
+            public uint reused;
+            public string[] drm = {};
+        }
 
         public string proc_root { get; set; default = "/proc"; }
 
@@ -96,7 +105,9 @@ namespace Singularity {
                     if (entry[0].isdigit()) pids.add(int.parse(entry));
                 }
                 pids.sort((a, b) => a - b);
-                foreach (int pid in pids) collect(pid, seen, clients);
+                var live = new Gee.HashMap<int, FdScan>();
+                foreach (int pid in pids) collect(pid, seen, clients, live);
+                scans = live;
             } catch (FileError e) {
                 return;
             }
@@ -131,7 +142,8 @@ namespace Singularity {
             memory_by_pid = memory_now;
         }
 
-        private void collect(int pid, Gee.HashMap<string, int> seen, Gee.HashMap<string, Client?> clients) {
+        private void collect(int pid, Gee.HashMap<string, int> seen, Gee.HashMap<string, Client?> clients,
+                Gee.HashMap<int, FdScan> live) {
             string fd_path = Path.build_filename(proc_root, pid.to_string(), "fd");
             Dir fds;
             try {
@@ -139,18 +151,28 @@ namespace Singularity {
             } catch (FileError e) {
                 return;
             }
+            var scan = new FdScan();
             string? fd;
             while ((fd = fds.read_name()) != null) {
-                string target;
-                try {
-                    target = FileUtils.read_link(Path.build_filename(fd_path, fd));
-                } catch (FileError e) {
-                    continue;
+                scan.count++;
+                scan.sum += uint64.parse(fd);
+            }
+            FdScan? cached = scans.get(pid);
+            if (cached != null && cached.reused < FULL_SCAN_EVERY && cached.count == scan.count
+                    && cached.sum == scan.sum && all_drm(fd_path, cached.drm)) {
+                scan.drm = cached.drm;
+                scan.reused = cached.reused + 1;
+            } else {
+                fds.rewind();
+                while ((fd = fds.read_name()) != null) {
+                    if (is_drm(fd_path, fd)) scan.drm += fd;
                 }
-                if (!target.has_prefix("/dev/dri/")) continue;
+            }
+            live.set(pid, scan);
+            foreach (string drm_fd in scan.drm) {
                 string text;
                 try {
-                    FileUtils.get_contents(Path.build_filename(proc_root, pid.to_string(), "fdinfo", fd), out text);
+                    FileUtils.get_contents(Path.build_filename(proc_root, pid.to_string(), "fdinfo", drm_fd), out text);
                 } catch (FileError e) {
                     continue;
                 }
@@ -159,6 +181,21 @@ namespace Singularity {
                 seen.set(client.key, pid);
                 clients.set(client.key, client);
             }
+        }
+
+        private static bool is_drm(string fd_path, string fd) {
+            try {
+                return FileUtils.read_link(Path.build_filename(fd_path, fd)).has_prefix("/dev/dri/");
+            } catch (FileError e) {
+                return false;
+            }
+        }
+
+        private static bool all_drm(string fd_path, string[] fds) {
+            foreach (string fd in fds) {
+                if (!is_drm(fd_path, fd)) return false;
+            }
+            return true;
         }
     }
 

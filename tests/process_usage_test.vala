@@ -60,6 +60,31 @@ private void test_busy_share_and_shared_client() {
     assert(usage.busy(300) == 0);
 }
 
+private void test_reused_fd_becomes_drm() {
+    string root = make_root();
+    write_fd(root, 400, 3, "/tmp/log.txt", "pos:\t0\n");
+    var usage = new Singularity.ProcessGpuUsage();
+    usage.proc_root = root;
+    usage.sample();
+    assert(usage.memory(400) == 0);
+    write_fd(root, 400, 3, "/dev/dri/renderD128", intel_client("21", 0));
+    for (int i = 0; i < 7; i++) usage.sample();
+    assert(usage.memory(400) == 2048 * 1024);
+}
+
+private void test_cached_scan_keeps_client() {
+    string root = make_root();
+    write_fd(root, 500, 4, "/tmp/data.db", "pos:\t0\n");
+    write_fd(root, 500, 8, "/dev/dri/card1", intel_client("31", 0));
+    var usage = new Singularity.ProcessGpuUsage();
+    usage.proc_root = root;
+    for (int i = 0; i < 3; i++) usage.sample();
+    assert(usage.memory(500) == 2048 * 1024);
+    write_fd(root, 500, 9, "/tmp/more.db", "pos:\t0\n");
+    usage.sample();
+    assert(usage.memory(500) == 2048 * 1024);
+}
+
 private const string SS_OUTPUT =
     "ESTAB 0 0 192.168.1.2:43512 1.2.3.4:443 users:((\"firefox\",pid=1234,fd=55))\n" +
     "\t cubic wscale:7,7 rto:204 bytes_sent:1000 bytes_acked:1001 bytes_received:5000 segs_out:10\n" +
@@ -96,6 +121,8 @@ public int main(string[] args) {
     Test.add_func("/process-usage/amd-legacy-memory", test_parse_amd_legacy_memory);
     Test.add_func("/process-usage/non-drm-ignored", test_non_drm_fdinfo_is_ignored);
     Test.add_func("/process-usage/gpu-busy-shared-client", test_busy_share_and_shared_client);
+    Test.add_func("/process-usage/reused-fd-becomes-drm", test_reused_fd_becomes_drm);
+    Test.add_func("/process-usage/cached-scan-keeps-client", test_cached_scan_keeps_client);
     Test.add_func("/process-usage/parse-ss", test_parse_ss);
     Test.add_func("/process-usage/network-rates", test_network_rates);
     return Test.run();
