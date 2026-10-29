@@ -22,15 +22,7 @@ namespace Singularity {
         private int64 previous_time = 0;
         private Gee.HashMap<int, double?> busy_by_pid = new Gee.HashMap<int, double?>();
         private Gee.HashMap<int, uint64?> memory_by_pid = new Gee.HashMap<int, uint64?>();
-        private Gee.HashMap<int, FdScan> scans = new Gee.HashMap<int, FdScan>();
-        private const uint FULL_SCAN_EVERY = 6;
-
-        private class FdScan {
-            public uint count;
-            public uint64 sum;
-            public uint reused;
-            public string[] drm = {};
-        }
+        private DrmFdIndex index = new DrmFdIndex();
 
         public string proc_root { get; set; default = "/proc"; }
 
@@ -105,9 +97,9 @@ namespace Singularity {
                     if (entry[0].isdigit()) pids.add(int.parse(entry));
                 }
                 pids.sort((a, b) => a - b);
-                var live = new Gee.HashMap<int, FdScan>();
-                foreach (int pid in pids) collect(pid, seen, clients, live);
-                scans = live;
+                index.begin();
+                foreach (int pid in pids) collect(pid, seen, clients);
+                index.finish();
             } catch (FileError e) {
                 return;
             }
@@ -142,34 +134,10 @@ namespace Singularity {
             memory_by_pid = memory_now;
         }
 
-        private void collect(int pid, Gee.HashMap<string, int> seen, Gee.HashMap<string, Client?> clients,
-                Gee.HashMap<int, FdScan> live) {
-            string fd_path = Path.build_filename(proc_root, pid.to_string(), "fd");
-            Dir fds;
-            try {
-                fds = Dir.open(fd_path);
-            } catch (FileError e) {
-                return;
-            }
-            var scan = new FdScan();
-            string? fd;
-            while ((fd = fds.read_name()) != null) {
-                scan.count++;
-                scan.sum += uint64.parse(fd);
-            }
-            FdScan? cached = scans.get(pid);
-            if (cached != null && cached.reused < FULL_SCAN_EVERY && cached.count == scan.count
-                    && cached.sum == scan.sum && all_drm(fd_path, cached.drm)) {
-                scan.drm = cached.drm;
-                scan.reused = cached.reused + 1;
-            } else {
-                fds.rewind();
-                while ((fd = fds.read_name()) != null) {
-                    if (is_drm(fd_path, fd)) scan.drm += fd;
-                }
-            }
-            live.set(pid, scan);
-            foreach (string drm_fd in scan.drm) {
+        private void collect(int pid, Gee.HashMap<string, int> seen, Gee.HashMap<string, Client?> clients) {
+            string[]? drm = index.lookup(Path.build_filename(proc_root, pid.to_string(), "fd"), pid.to_string());
+            if (drm == null) return;
+            foreach (string drm_fd in drm) {
                 string text;
                 try {
                     FileUtils.get_contents(Path.build_filename(proc_root, pid.to_string(), "fdinfo", drm_fd), out text);
@@ -181,6 +149,63 @@ namespace Singularity {
                 seen.set(client.key, pid);
                 clients.set(client.key, client);
             }
+        }
+    }
+
+    internal class DrmFdIndex {
+        private const uint FULL_SCAN_EVERY = 6;
+        private const uint IDLE_SCAN_EVERY = 30;
+        private Gee.HashMap<string, FdScan> scans = new Gee.HashMap<string, FdScan>();
+        private Gee.HashMap<string, FdScan> live = new Gee.HashMap<string, FdScan>();
+
+        private class FdScan {
+            public uint count;
+            public uint64 sum;
+            public uint reused;
+            public string[] drm = {};
+        }
+
+        public void begin() {
+            live = new Gee.HashMap<string, FdScan>();
+        }
+
+        public void finish() {
+            scans = live;
+        }
+
+        public string[]? lookup(string fd_path, string key) {
+            FdScan? idle = scans.get(key);
+            if (idle != null && idle.drm.length == 0 && idle.reused < IDLE_SCAN_EVERY) {
+                idle.reused++;
+                live.set(key, idle);
+                return idle.drm;
+            }
+            Dir fds;
+            try {
+                fds = Dir.open(fd_path);
+            } catch (FileError e) {
+                return null;
+            }
+            var scan = new FdScan();
+            string? fd;
+            while ((fd = fds.read_name()) != null) {
+                scan.count++;
+                scan.sum += uint64.parse(fd);
+            }
+            FdScan? cached = scans.get(key);
+            if (cached != null && cached.reused < FULL_SCAN_EVERY && cached.count == scan.count
+                    && cached.sum == scan.sum && all_drm(fd_path, cached.drm)) {
+                scan.drm = cached.drm;
+                scan.reused = cached.reused + 1;
+            } else {
+                fds.rewind();
+                while ((fd = fds.read_name()) != null) {
+                    if (is_drm(fd_path, fd)) scan.drm += fd;
+                }
+            }
+            if (cached == null && scan.drm.length == 0) scan.reused = key.hash() % IDLE_SCAN_EVERY;
+            live.set(key, scan);
+            return scan.drm;
         }
 
         private static bool is_drm(string fd_path, string fd) {

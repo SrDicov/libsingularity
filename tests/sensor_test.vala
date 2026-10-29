@@ -62,8 +62,19 @@ private void cpufreq_policy(int n, int cur_khz, int max_khz) {
     }
 }
 
+private void drm_fd(int pid, int fd) {
+    string fd_dir = Path.build_filename(fixture_root, "proc", pid.to_string(), "fd");
+    DirUtils.create_with_parents(fd_dir, 0755);
+    string link = Path.build_filename(fd_dir, fd.to_string());
+    FileUtils.remove(link);
+    if (FileUtils.symlink("/dev/dri/renderD128", link) != 0) {
+        error("cannot link %s", link);
+    }
+}
+
 private void drm_client(int pid, int fd, string client_id,
                         uint64 render_ns, uint64 copy_ns = 0) {
+    drm_fd(pid, fd);
     string path = Path.build_filename(fixture_root, "proc", pid.to_string(),
                                       "fdinfo", fd.to_string());
     write_file(path,
@@ -700,6 +711,9 @@ private void test_integrated_gpu_resident_memory() {
     write_file(first, head + "drm-client-id:\t9\ndrm-resident-system0:\t2048 KiB\ndrm-resident-stolen-system0:\t0\n");
     write_file(twin, head + "drm-client-id:\t9\ndrm-resident-system0:\t2048 KiB\n");
     write_file(other, head + "drm-client-id:\t10\ndrm-resident-system0:\t1 MiB\n");
+    drm_fd(200, 4);
+    drm_fd(200, 5);
+    drm_fd(300, 4);
 
     var m = new Singularity.SensorMonitor();
     m.sysfs_root = fixture_root;

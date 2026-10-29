@@ -68,7 +68,7 @@ private void test_reused_fd_becomes_drm() {
     usage.sample();
     assert(usage.memory(400) == 0);
     write_fd(root, 400, 3, "/dev/dri/renderD128", intel_client("21", 0));
-    for (int i = 0; i < 7; i++) usage.sample();
+    for (int i = 0; i < 31; i++) usage.sample();
     assert(usage.memory(400) == 2048 * 1024);
 }
 

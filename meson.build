@@ -613,6 +613,7 @@ if get_option('system')
     files(
       'tests/sensor_test.vala',
       'src/system/sensor.vala',
+      'src/system/process_usage.vala',
     ),
     dependencies: [gio_dep, gee_dep],
   )
@@ -657,6 +658,7 @@ if get_option('system')
       'tests/utilization_test.vala',
       'src/system/utilization.vala',
       'src/system/sensor.vala',
+      'src/system/process_usage.vala',
     ),
     # giounix_dep: utilization.vala's is_real_filesystem() consults
     # GLib.UnixMountEntry (gio-unix-2.0) when proc_root is unset. The

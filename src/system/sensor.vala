@@ -561,6 +561,7 @@ namespace Singularity {
         private int64 _nvidia_vram_used = -1;
         private int64 _nvidia_vram_total = -1;
         private int64 _drm_resident_bytes = -1;
+        private DrmFdIndex _drm_fds = new DrmFdIndex();
         private int64 _last_gpu_sample_us = 0;
         private Gee.HashMap<string, uint64?> _drm_counters =
             new Gee.HashMap<string, uint64?>();
@@ -1180,20 +1181,18 @@ namespace Singularity {
             } catch (FileError e) {
                 return;
             }
+            _drm_fds.begin();
             string? pid;
             while ((pid = proc.read_name()) != null) {
                 if (pid == "" || !pid[0].isdigit()) {
                     continue;
                 }
                 string fdinfo_path = proc_dir() + "/" + pid + "/fdinfo";
-                Dir fdinfo;
-                try {
-                    fdinfo = Dir.open(fdinfo_path, 0);
-                } catch (FileError e) {
+                string[]? drm = _drm_fds.lookup(proc_dir() + "/" + pid + "/fd", pid);
+                if (drm == null) {
                     continue;
                 }
-                string? fd;
-                while ((fd = fdinfo.read_name()) != null) {
+                foreach (string fd in drm) {
                     string contents;
                     try {
                         if (!FileUtils.get_contents(fdinfo_path + "/" + fd,
@@ -1257,6 +1256,7 @@ namespace Singularity {
                     }
                 }
             }
+            _drm_fds.finish();
         }
 
         internal void sample_gpu_utilization(int64 now_us) {
