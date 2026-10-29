@@ -73,12 +73,14 @@ namespace Singularity {
                     timezone = target.substring(prefix.length);
                 }
             } catch (Error e) {}
-            // runit NTP services (Void: openntpd provides /etc/sv/ntpd).
-            ntp_active = FileUtils.test("/var/service/ntpd", FileTest.IS_SYMLINK)
+            // runit NTP services: openntpd, ntp and chrony have distinct names.
+            ntp_active = FileUtils.test("/var/service/openntpd", FileTest.IS_SYMLINK)
+                || FileUtils.test("/var/service/ntpd", FileTest.IS_SYMLINK)
                 || FileUtils.test("/var/service/chronyd", FileTest.IS_SYMLINK);
         }
 
         private string? pick_ntp_service() {
+            if (FileUtils.test("/etc/sv/openntpd", FileTest.IS_DIR)) return "openntpd";
             if (FileUtils.test("/etc/sv/ntpd", FileTest.IS_DIR)) return "ntpd";
             if (FileUtils.test("/etc/sv/chronyd", FileTest.IS_DIR)) return "chronyd";
             return null;
