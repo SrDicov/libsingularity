@@ -23,6 +23,11 @@ namespace Singularity.Animation {
 
         private const string DATA_KEY = "singularity-drag-lift";
 
+        // Bind the C function directly: some Vala versions (0.56) expose the
+        // GIR <constructor> as a constructor and reject calling it as a method.
+        [CCode (cname = "gtk_drag_icon_get_for_drag")]
+        private static extern unowned Gtk.Widget drag_icon_get_for_drag(Gdk.Drag drag);
+
         private MotionBin? _icon_bin = null;
         private double _press_x = -1.0;
         private double _press_y = -1.0;
@@ -97,7 +102,7 @@ namespace Singularity.Animation {
             if (!use_icon || item.get_width() <= 0) return;
             var bin = build_icon(item);
             _icon_bin = bin;
-            var icon = Gtk.DragIcon.get_for_drag(drag) as Gtk.DragIcon;
+            var icon = drag_icon_get_for_drag(drag) as Gtk.DragIcon;
             if (icon == null) return;
             icon.child = bin;
             double x = _press_x, y = _press_y;
