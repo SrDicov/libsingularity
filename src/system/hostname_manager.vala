@@ -112,6 +112,13 @@ namespace Singularity {
                     warning("HostnameManager: bad Command: %s", e.message);
                 }
             }
+            // No hostname1 daemon (Void/runit) and no configured command:
+            // write /etc/hostname and call hostname(1) through pkexec.
+            if (choice != "none" && Environment.find_program_in_path("pkexec") != null) {
+                backend = "pkexec";
+                can_change = true;
+                return;
+            }
             backend = "none";
             can_change = false;
         }
@@ -130,6 +137,14 @@ namespace Singularity {
                 string[] argv = command;
                 argv += name;
                 argv += pretty.strip();
+                var proc = new Subprocess.newv(argv, SubprocessFlags.STDERR_PIPE);
+                string? err;
+                yield proc.communicate_utf8_async(null, null, null, out err);
+                if (!proc.get_successful()) throw new IOError.FAILED((err ?? "").strip());
+            } else if (backend == "pkexec") {
+                // `name` is sanitised by static_name: [a-z0-9-] only.
+                string[] argv = { "pkexec", "sh", "-c",
+                    "printf '%s\\n' \"$1\" > /etc/hostname && hostname \"$1\"", "_", name };
                 var proc = new Subprocess.newv(argv, SubprocessFlags.STDERR_PIPE);
                 string? err;
                 yield proc.communicate_utf8_async(null, null, null, out err);
