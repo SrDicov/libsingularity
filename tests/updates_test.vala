@@ -60,6 +60,7 @@ private void test_config() {
     assert(config.atomic_bus_name == "org.example.Updates");
     assert(config.atomic_object_path == Config.ATOMIC_OBJECT_PATH);
     assert(Config.normalize_backend("PackageKit") == "packagekit");
+    assert(Config.normalize_backend("XBPS") == "xbps");
     assert(Config.normalize_backend("rpm-ostree") == "auto");
     remove_tree(fixture);
 }

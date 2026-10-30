@@ -43,6 +43,7 @@ namespace Singularity.Updates {
         public static string normalize_backend(string value) {
             switch (value.strip().down()) {
                 case "packagekit": return "packagekit";
+                case "xbps": return "xbps";
                 case "atomic": return "atomic";
                 case "none": return "none";
             }
