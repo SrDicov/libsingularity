@@ -122,6 +122,10 @@ namespace Singularity.Updates {
                 var atomic = new AtomicProvider(config);
                 if (yield atomic.probe()) return atomic;
             }
+            if (config.backend == "xbps" || config.backend == "auto") {
+                var xbps = new XbpsProvider();
+                if (yield xbps.probe()) return xbps;
+            }
             if (config.backend == "packagekit" || config.backend == "auto") {
                 var packagekit = new PackageKitProvider();
                 if (yield packagekit.probe()) return packagekit;

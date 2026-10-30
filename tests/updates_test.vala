@@ -87,6 +87,19 @@ private void test_packagekit_parsing() {
     assert(failed.time == 0);
 }
 
+private void test_xbps_parsing() {
+    var list = XbpsProvider.parse_updates(
+        "foo-1.1_1 update x86_64 /repo 4 547\n" +
+        "libfoo-bar-2.0_3 update x86_64-musl /repo 5 900\n" +
+        "noise line\n" +
+        "broken update\n");
+    assert(list.size == 2);
+    assert(list.get(0).name == "foo");
+    assert(list.get(0).version == "1.1_1");
+    assert(list.get(1).name == "libfoo-bar");
+    assert(list.get(1).version == "2.0_3");
+}
+
 private void test_markup() {
     string text = Client.markup_to_text("<p>This release fixes &amp; improves:</p><ul><li>Battery  life</li><li>USB-C &lt;PD&gt;</li></ul><p>Reboot required.</p>");
     assert(text == "This release fixes & improves:\n• Battery life\n• USB-C <PD>\n\nReboot required.");
@@ -235,6 +248,7 @@ public static int main(string[] args) {
     Test.add_func("/updates/config", test_config);
     Test.add_func("/updates/state", test_state);
     Test.add_func("/updates/packagekit-parsing", test_packagekit_parsing);
+    Test.add_func("/updates/xbps-parsing", test_xbps_parsing);
     Test.add_func("/firmware/markup", test_markup);
     Test.add_func("/firmware/hsi", test_hsi);
     Test.add_func("/firmware/variants", test_firmware_variants);
