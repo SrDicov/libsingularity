@@ -143,7 +143,14 @@ namespace Singularity {
             if (Environment.find_program_in_path("pkexec") == null) return;
             string script = "grep -qxF \"$1 UTF-8\" /etc/default/libc-locales || echo \"$1 UTF-8\" >> /etc/default/libc-locales; xbps-reconfigure -f glibc-locales";
             try {
-                new Subprocess.newv({ "pkexec", "sh", "-c", script, "_", lang }, SubprocessFlags.NONE);
+                var proc = new Subprocess.newv({ "pkexec", "sh", "-c", script, "_", lang }, SubprocessFlags.NONE);
+                proc.wait_check_async.begin(null, (obj, res) => {
+                    try {
+                        proc.wait_check_async.end(res);
+                    } catch (Error e) {
+                        warning("LocaleManager: glibc-locales reconfigure: %s", e.message);
+                    }
+                });
             } catch (Error e) {
                 warning("LocaleManager: cannot generate %s: %s", lang, e.message);
             }
